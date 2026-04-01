@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>stAIpler — How It Works</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #0b0c12; font-family: 'Inter', system-ui, sans-serif; }
+  canvas { display: block; }
+
+  #header {
+    position: fixed; top: 0; left: 0; width: 100%; z-index: 10;
+    padding: 18px 28px; pointer-events: none;
+    display: flex; align-items: baseline; gap: 14px;
+  }
+  #header h1 {
+    font-size: 1.3rem; font-weight: 600; letter-spacing: 0.04em;
+    background: linear-gradient(135deg, #7eb8ff, #a78bfa, #f0abfc);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  #header .sub {
+    font-size: 0.7rem; font-weight: 400; letter-spacing: 0.1em;
+    text-transform: uppercase; color: rgba(255,255,255,0.5);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  #caption {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 10; pointer-events: none;
+    font: 500 0.72rem/1 'JetBrains Mono', monospace;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: rgba(255,255,255,0.0); transition: color 0.35s;
+    padding: 5px 14px; border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+  }
+  #caption.on { color: rgba(255,255,255,0.75); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>stAIpler</h1>
+  <span class="sub">instruction bundle pipeline</span>
+</div>
+<div id="caption"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.164.1/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ============================================================
+// DATA
+// ============================================================
+
+const ASSETS = [
+  { id: 'identity',    title: 'core/identity.md',   kind: 'identity',    origin: 'library',  priority: 50, inherited: true },
+  { id: 'safety',      title: 'core/safety.md',     kind: 'constraints', origin: 'library',  priority: 40 },
+  { id: 'context',     title: 'support/context.md', kind: 'context',     origin: 'library',  priority: 30, merge: 'concatenate' },
+  { id: 'skills',      title: './skills.md',         kind: 'skills',      origin: 'local',    priority: 60, merge: 'concatenate' },
+  { id: 'style-lib',   title: 'support/style.md',   kind: 'style',       origin: 'library',  priority: 35, merge: 'last-wins', discarded: true },
+  { id: 'style-local', title: './style.md',          kind: 'style',       origin: 'local',    priority: 65, merge: 'last-wins' },
+  { id: 'skill-ext',   title: 'external/SKILL.md',  kind: 'skills',      origin: 'imported', priority: 20, filtered: true },
+  { id: 'memory',      title: 'memory.md',          kind: 'memory',      origin: 'local',    priority: 70, runtime: true },
+];
+
+const COLORS = {
+  identity:    0x60a5fa, constraints: 0xf87171, context: 0xfbbf24,
+  skills:      0xa78bfa, style:       0xf0abfc, memory:  0x34d399,
+};
+const ORIGIN_COLORS = { library: 0x60a5fa, local: 0x34d399, imported: 0xfbbf24 };
+const CANONICAL = ['identity','context','constraints','skills','style','memory'];
+
+// ============================================================
+// TIMELINE — 14s cycle
+// ============================================================
+
+const CYCLE = 14;
+const PHASES = [
+  { id: 'idle',      s: 0.0, e: 0.8,  label: '' },
+  { id: 'discover',  s: 0.8, e: 2.5,  label: 'discover assets from library, local stack, and imports' },
+  { id: 'validate',  s: 2.5, e: 4.0,  label: 'validate frontmatter and schema contracts' },
+  { id: 'filter',    s: 4.0, e: 5.6,  label: 'filter by compile target — incompatible assets removed' },
+  { id: 'inherit',   s: 5.6, e: 6.8,  label: 'resolve inheritance — parent content prepended to child' },
+  { id: 'merge',     s: 6.8, e: 8.8,  label: 'apply merge policy — last-wins or concatenate per kind' },
+  { id: 'order',     s: 8.8, e: 10.0, label: 'sort into canonical section order' },
+  { id: 'compile',   s: 10.0,e: 11.8, label: 'compile into a single runtime bundle' },
+  { id: 'runtime',   s: 11.8,e: 13.0, label: 'memory section flagged for runtime injection' },
+  { id: 'reveal',    s: 13.0,e: 14.0, label: '' },
+];
+
+function getPhase(t) {
+  for (let i = PHASES.length - 1; i >= 0; i--)
+    if (t >= PHASES[i].s) return PHASES[i];
+  return PHASES[0];
+}
+
+// ============================================================
+// RENDERER
+// ============================================================
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x0b0c12);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+// Orthographic camera — see the whole flowchart at once
+const aspect = window.innerWidth / window.innerHeight;
+const viewH = 16;
+const cam = new THREE.OrthographicCamera(
+  -viewH * aspect / 2, viewH * aspect / 2,
+  viewH / 2, -viewH / 2, 0.1, 100
+);
+cam.position.set(0, 0, 20);
+cam.lookAt(0, 0, 0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+
+// ============================================================
+// LAYOUT — flat flowchart, left to right
+// ============================================================
+
+// Columns for pipeline stages
+const COL_X = {
+  sources: -11,
+  validate: -6.5,
+  filter: -3,
+  merge: 1.5,
+  order: 5.5,
+  bundle: 9.5,
+};
+
+const LANE_Y = { library: 2.5, local: 0, imported: -2.5 };
+const CARD_W = 3.2;
+const CARD_H = 1.1;
+
+// ============================================================
+// SPRITE TEXT HELPER
+// ============================================================
+
+function textSprite(text, opts = {}) {
+  const fontSize = opts.fontSize || 28;
+  const fontWeight = opts.fontWeight || '500';
+  const fontFamily = opts.fontFamily || '"JetBrains Mono", monospace';
+  const fillColor = opts.color || 'rgba(255,255,255,0.7)';
+  const maxWidth = opts.maxWidth || 512;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = maxWidth;
+  canvas.height = Math.ceil(fontSize * 2);
+  const ctx = canvas.getContext('2d');
+  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  ctx.fillStyle = fillColor;
+  ctx.textAlign = opts.align || 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, opts.align === 'left' ? 4 : maxWidth / 2, canvas.height / 2);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  const scale = opts.scale || 4;
+  sprite.scale.set(scale, scale * canvas.height / canvas.width, 1);
+  scene.add(sprite);
+  return { sprite, mat };
+}
+
+// ============================================================
+// CARD SPRITE HELPER
+// ============================================================
+
+function makeCardCanvas(asset) {
+  const W = 400, H = 140;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  const c = COLORS[asset.kind];
+  const r = (c >> 16) & 0xff, g = (c >> 8) & 0xff, b = c & 0xff;
+
+  // bg — solid dark fill for readability
+  ctx.fillStyle = `rgba(18,20,30,0.95)`;
+  ctx.beginPath(); ctx.roundRect(0, 0, W, H, 12); ctx.fill();
+
+  // inner tint
+  ctx.fillStyle = `rgba(${r},${g},${b},0.06)`;
+  ctx.beginPath(); ctx.roundRect(0, 0, W, H, 12); ctx.fill();
+
+  // border — strong
+  ctx.strokeStyle = `rgba(${r},${g},${b},0.65)`;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(1, 1, W - 2, H - 2, 12); ctx.stroke();
+
+  // title — full white
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.font = '600 22px "Inter", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(asset.title, 16, 32);
+
+  // kind badge
+  ctx.fillStyle = `rgba(${r},${g},${b},0.25)`;
+  ctx.font = '500 16px "JetBrains Mono", monospace';
+  const kw = ctx.measureText(asset.kind).width + 14;
+  ctx.beginPath(); ctx.roundRect(16, 46, kw, 22, 4); ctx.fill();
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillText(asset.kind, 23, 62);
+
+  // priority
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  const pt = `p:${asset.priority}`;
+  const pw = ctx.measureText(pt).width + 14;
+  ctx.beginPath(); ctx.roundRect(20 + kw, 46, pw, 22, 4); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  ctx.fillText(pt, 27 + kw, 62);
+
+  // origin dot + label
+  const oc = ORIGIN_COLORS[asset.origin];
+  const or2 = (oc >> 16) & 0xff, og = (oc >> 8) & 0xff, ob = oc & 0xff;
+  ctx.fillStyle = `rgb(${or2},${og},${ob})`;
+  ctx.beginPath(); ctx.arc(W - 20, 26, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(${or2},${og},${ob},0.8)`;
+  ctx.font = '400 13px "Inter", sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(asset.origin, W - 32, 30);
+
+  // faint content lines
+  ctx.fillStyle = `rgba(${r},${g},${b},0.1)`;
+  for (let i = 0; i < 3; i++) ctx.fillRect(16, 80 + i * 16, 120 + Math.random() * 200, 6);
+
+  // imported chip
+  if (asset.origin === 'imported') {
+    ctx.fillStyle = `rgba(${r},${g},${b},0.2)`;
+    ctx.beginPath(); ctx.roundRect(16, 76, 72, 20, 4); ctx.fill();
+    ctx.fillStyle = `rgba(${r},${g},${b},0.9)`;
+    ctx.font = '500 12px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('imported', 24, 90);
+  }
+
+  return canvas;
+}
+
+// ============================================================
+// CREATE CARDS
+// ============================================================
+
+const cards = ASSETS.map((asset, i) => {
+  const canvas = makeCardCanvas(asset);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(CARD_W, CARD_H, 1);
+
+  const laneY = LANE_Y[asset.origin];
+  // Stack cards within their lane
+  const laneAssets = ASSETS.filter(a => a.origin === asset.origin);
+  const slot = laneAssets.indexOf(asset);
+  const slotOffset = (slot - (laneAssets.length - 1) / 2) * (CARD_H + 0.15);
+
+  sprite.position.set(COL_X.sources - 4, laneY + slotOffset, 0);
+  scene.add(sprite);
+
+  return {
+    asset, sprite, mat,
+    homeX: COL_X.sources, homeY: laneY + slotOffset,
+    x: COL_X.sources - 4, y: laneY + slotOffset,
+    targetX: COL_X.sources - 4, targetY: laneY + slotOffset,
+    alpha: 0, targetAlpha: 0,
+    tintOverlay: 0, // 0=normal, 1=grayed
+  };
+});
+
+// ============================================================
+// GHOST CARD (inheritance parent)
+// ============================================================
+
+const ghostCanvas = (() => {
+  const W = 400, H = 140;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(18,20,35,0.85)';
+  ctx.beginPath(); ctx.roundRect(0, 0, W, H, 12); ctx.fill();
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = 'rgba(96,165,250,0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(1, 1, W - 2, H - 2, 12); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(96,165,250,0.85)';
+  ctx.font = '500 20px "Inter", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('base_identity.md', 16, 34);
+  ctx.fillStyle = 'rgba(96,165,250,0.55)';
+  ctx.font = '400 15px "JetBrains Mono", monospace';
+  ctx.fillText('parent asset', 16, 58);
+  return c;
+})();
+const ghostTex = new THREE.CanvasTexture(ghostCanvas);
+const ghostMat = new THREE.SpriteMaterial({ map: ghostTex, transparent: true, opacity: 0, depthWrite: false });
+const ghostSprite = new THREE.Sprite(ghostMat);
+ghostSprite.scale.set(CARD_W, CARD_H, 1);
+scene.add(ghostSprite);
+
+// ============================================================
+// STAGE GATE BOXES (thin vertical regions)
+// ============================================================
+
+function makeGate(x, w, color) {
+  const geo = new THREE.PlaneGeometry(w, 12);
+  const mat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, 0, -0.5);
+  scene.add(mesh);
+  return { mesh, mat };
+}
+
+const gateRegions = {
+  validate: makeGate(COL_X.validate, 2.8, 0x60a5fa),
+  filter:   makeGate(COL_X.filter, 2.8, 0xfbbf24),
+  merge:    makeGate(COL_X.merge, 3.5, 0xa78bfa),
+  order:    makeGate(COL_X.order, 2.8, 0x34d399),
+};
+
+// Gate labels
+const gateLabels = {
+  validate: textSprite('VALIDATE', { fontSize: 32, fontWeight: '700', color: 'rgb(96,165,250)', scale: 3.5 }),
+  filter:   textSprite('FILTER', { fontSize: 32, fontWeight: '700', color: 'rgb(251,191,36)', scale: 3.5 }),
+  merge:    textSprite('MERGE', { fontSize: 32, fontWeight: '700', color: 'rgb(167,139,250)', scale: 3.5 }),
+  order:    textSprite('ORDER', { fontSize: 32, fontWeight: '700', color: 'rgb(52,211,153)', scale: 3.5 }),
+};
+gateLabels.validate.sprite.position.set(COL_X.validate, 5.8, 0);
+gateLabels.filter.sprite.position.set(COL_X.filter, 5.8, 0);
+gateLabels.merge.sprite.position.set(COL_X.merge, 5.8, 0);
+gateLabels.order.sprite.position.set(COL_X.order, 5.8, 0);
+
+// ============================================================
+// LANE LABELS
+// ============================================================
+
+const laneLabels = [
+  textSprite('library', { fontSize: 26, fontWeight: '600', color: 'rgb(96,165,250)', scale: 3 }),
+  textSprite('local', { fontSize: 26, fontWeight: '600', color: 'rgb(52,211,153)', scale: 3 }),
+  textSprite('imported', { fontSize: 26, fontWeight: '600', color: 'rgb(251,191,36)', scale: 3 }),
+];
+laneLabels[0].sprite.position.set(COL_X.sources - 4, LANE_Y.library + 2, 0);
+laneLabels[1].sprite.position.set(COL_X.sources - 4, LANE_Y.local + 1.5, 0);
+laneLabels[2].sprite.position.set(COL_X.sources - 4, LANE_Y.imported + 1.2, 0);
+
+// ============================================================
+// ARROWS (thin lines connecting stages)
+// ============================================================
+
+function makeLine(points, color) {
+  const geo = new THREE.BufferGeometry().setFromPoints(points.map(p => new THREE.Vector3(p[0], p[1], -0.2)));
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false });
+  const line = new THREE.Line(geo, mat);
+  scene.add(line);
+  return { line, mat, geo };
+}
+
+// Horizontal flow lines between stages
+const flowLines = [];
+const stageXs = [COL_X.sources + 1.8, COL_X.validate, COL_X.filter, COL_X.merge, COL_X.order, COL_X.bundle - 1.5];
+for (let i = 0; i < stageXs.length - 1; i++) {
+  const x1 = stageXs[i] + 0.8;
+  const x2 = stageXs[i + 1] - 0.8;
+  flowLines.push(makeLine([[x1, 0], [x2, 0]], 0x556688));
+}
+
+// ============================================================
+// FLOW DOTS (animated particles along arrows)
+// ============================================================
+
+const dotPool = [];
+const MAX_DOTS = 60;
+
+function spawnDot(x1, y1, x2, y2, color, speed) {
+  if (dotPool.length >= MAX_DOTS) return;
+  const geo = new THREE.CircleGeometry(0.09, 8);
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x1, y1, 0.1);
+  scene.add(mesh);
+  dotPool.push({ mesh, mat, x1, y1, x2, y2, t: 0, speed: speed || 0.6 });
+}
+
+// ============================================================
+// BUNDLE NODE
+// ============================================================
+
+const bundleCanvas = (() => {
+  const W = 320, H = 360;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+
+  ctx.fillStyle = 'rgba(16,18,30,0.95)';
+  ctx.beginPath(); ctx.roundRect(0, 0, W, H, 16); ctx.fill();
+  ctx.strokeStyle = 'rgba(167,139,250,0.7)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(1, 1, W - 2, H - 2, 16); ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.font = '600 22px "Inter", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Compiled Bundle', W / 2, 36);
+
+  const sections = CANONICAL;
+  const tabH = 36;
+  const gap = 6;
+  const startY = 54;
+  sections.forEach((kind, i) => {
+    const cc = COLORS[kind];
+    const r = (cc >> 16) & 0xff, g = (cc >> 8) & 0xff, b = cc & 0xff;
+    const ty = startY + i * (tabH + gap);
+
+    ctx.fillStyle = `rgba(${r},${g},${b},0.12)`;
+    ctx.beginPath(); ctx.roundRect(12, ty, W - 24, tabH, 6); ctx.fill();
+    ctx.strokeStyle = `rgba(${r},${g},${b},0.35)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect(12, ty, W - 24, tabH, 6); ctx.stroke();
+
+    ctx.fillStyle = `rgba(${r},${g},${b},0.9)`;
+    ctx.font = '500 15px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(kind, 24, ty + 23);
+
+    if (kind === 'memory') {
+      ctx.fillStyle = 'rgba(52,211,153,0.25)';
+      ctx.beginPath(); ctx.roundRect(W - 100, ty + 8, 80, 22, 4); ctx.fill();
+      ctx.fillStyle = 'rgba(52,211,153,0.9)';
+      ctx.font = '500 12px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('runtime', W - 60, ty + 23);
+    }
+  });
+
+  return c;
+})();
+const bundleTex = new THREE.CanvasTexture(bundleCanvas);
+const bundleMat = new THREE.SpriteMaterial({ map: bundleTex, transparent: true, opacity: 0, depthWrite: false });
+const bundleSprite = new THREE.Sprite(bundleMat);
+bundleSprite.scale.set(3.2, 3.6, 1);
+bundleSprite.position.set(COL_X.bundle, 0, 0);
+scene.add(bundleSprite);
+
+// ============================================================
+// TAG SPRITES
+// ============================================================
+
+function tagSprite(text, color, bgColor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 48;
+  const ctx = canvas.getContext('2d');
+  if (bgColor) {
+    ctx.fillStyle = bgColor;
+    ctx.beginPath(); ctx.roundRect(4, 4, ctx.measureText(text).width + 20, 40, 6);
+    // re-measure after setting font
+  }
+  ctx.font = '500 22px "JetBrains Mono", monospace';
+  const tw = ctx.measureText(text).width;
+  if (bgColor) {
+    ctx.fillStyle = bgColor;
+    ctx.beginPath(); ctx.roundRect((256 - tw) / 2 - 10, 4, tw + 20, 40, 6); ctx.fill();
+  }
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 128, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(2.5, 0.47, 1);
+  scene.add(sprite);
+  return { sprite, mat };
+}
+
+const filteredTag = tagSprite('filtered', 'rgba(251,191,36,1)', 'rgba(251,191,36,0.18)');
+const discardedTag = tagSprite('discarded', 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.08)');
+const winsTag = tagSprite('p:65 wins', 'rgba(240,171,252,1)', 'rgba(240,171,252,0.15)');
+const concatTag = tagSprite('stacked', 'rgba(167,139,250,1)', 'rgba(167,139,250,0.15)');
+const targetTag = tagSprite('target: anthropic', 'rgba(167,139,250,1)', 'rgba(167,139,250,0.12)');
+const inheritTag = tagSprite('inherited', 'rgba(96,165,250,1)', 'rgba(96,165,250,0.15)');
+
+// Runtime chips
+const rtChips = ['user state', 'session ctx'].map(t => {
+  const s = tagSprite(t, 'rgba(52,211,153,1)', 'rgba(52,211,153,0.15)');
+  s.sprite.scale.set(2, 0.38, 1);
+  return s;
+});
+const rtLabel = tagSprite('runtime inject', 'rgba(52,211,153,0.9)', 'rgba(52,211,153,0.1)');
+
+// ============================================================
+// GRAY OVERLAY for cards
+// ============================================================
+
+function makeGrayOverlay() {
+  const c = document.createElement('canvas');
+  c.width = 400; c.height = 140;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(15,15,25,0.75)';
+  ctx.beginPath(); ctx.roundRect(0, 0, 400, 140, 12); ctx.fill();
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(CARD_W, CARD_H, 1);
+  scene.add(sprite);
+  return { sprite, mat };
+}
+
+const grayOverlays = ASSETS.map(() => makeGrayOverlay());
+
+// ============================================================
+// HIGHLIGHT RING
+// ============================================================
+
+function makeHighlight(color) {
+  const c = document.createElement('canvas');
+  c.width = 420; c.height = 160;
+  const ctx = c.getContext('2d');
+  const r = (color >> 16) & 0xff, g = (color >> 8) & 0xff, b = color & 0xff;
+  ctx.strokeStyle = `rgba(${r},${g},${b},0.85)`;
+  ctx.lineWidth = 4;
+  ctx.shadowColor = `rgba(${r},${g},${b},0.6)`;
+  ctx.shadowBlur = 16;
+  ctx.beginPath(); ctx.roundRect(6, 6, 408, 148, 14); ctx.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(CARD_W + 0.15, CARD_H + 0.1, 1);
+  scene.add(sprite);
+  return { sprite, mat };
+}
+
+const highlights = ASSETS.map(a => makeHighlight(COLORS[a.kind]));
+
+// ============================================================
+// EASING
+// ============================================================
+
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInOut(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+function clamp(t) { return Math.max(0, Math.min(1, t)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+
+const caption = document.getElementById('caption');
+const clock = new THREE.Clock();
+let elapsed = 0;
+let dotTimer = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  elapsed += dt;
+  const cycleT = elapsed % CYCLE;
+  const phase = getPhase(cycleT);
+  const phaseT = clamp((cycleT - phase.s) / (phase.e - phase.s));
+
+  // UI caption
+  if (phase.label) {
+    caption.textContent = phase.label;
+    caption.classList.add('on');
+  } else {
+    caption.classList.remove('on');
+  }
+
+  // ---- GLOBAL VISIBILITY ----
+  const globalAlpha = clamp((cycleT - 0.3) / 0.8) * clamp((CYCLE - 0.5 - cycleT) / 0.8);
+
+  // Gate regions glow during their phase
+  for (const [name, gate] of Object.entries(gateRegions)) {
+    const isActive =
+      (name === 'validate' && phase.id === 'validate') ||
+      (name === 'filter' && phase.id === 'filter') ||
+      (name === 'merge' && (phase.id === 'merge' || phase.id === 'inherit')) ||
+      (name === 'order' && phase.id === 'order');
+    gate.mat.opacity = isActive ? 0.08 : 0.03;
+    gate.mat.opacity *= globalAlpha;
+  }
+
+  // Gate labels
+  for (const [name, label] of Object.entries(gateLabels)) {
+    const isActive =
+      (name === 'validate' && phase.id === 'validate') ||
+      (name === 'filter' && phase.id === 'filter') ||
+      (name === 'merge' && (phase.id === 'merge' || phase.id === 'inherit')) ||
+      (name === 'order' && phase.id === 'order');
+    label.mat.opacity = (isActive ? 1.0 : 0.55) * globalAlpha;
+  }
+
+  // Lane labels
+  const laneFade = clamp((cycleT - 0.5) / 1.0) * clamp((5 - cycleT) / 1.5);
+  laneLabels.forEach(l => l.mat.opacity = laneFade * 1.0);
+
+  // Flow lines
+  flowLines.forEach(fl => fl.mat.opacity = globalAlpha * 0.35);
+
+  // ---- CARD POSITIONS BY PHASE ----
+
+  // Reset
+  cards.forEach((c, i) => {
+    c.targetAlpha = 0;
+    highlights[i].mat.opacity = 0;
+    grayOverlays[i].mat.opacity = 0;
+  });
+  ghostMat.opacity = 0;
+  filteredTag.mat.opacity = 0;
+  discardedTag.mat.opacity = 0;
+  winsTag.mat.opacity = 0;
+  concatTag.mat.opacity = 0;
+  targetTag.mat.opacity = 0;
+  inheritTag.mat.opacity = 0;
+  bundleMat.opacity = 0;
+  rtChips.forEach(c => c.mat.opacity = 0);
+  rtLabel.mat.opacity = 0;
+
+  // Pre-compute stacked positions at each stage
+  const validateStack = ASSETS.map((a, i) => ({
+    x: COL_X.validate, y: 3 - i * (CARD_H + 0.12)
+  }));
+
+  const activeAfterFilter = ASSETS.filter(a => !a.filtered);
+  const filterStack = ASSETS.map((a, i) => {
+    if (a.filtered) return { x: COL_X.filter + 1, y: -4.5 };
+    const ai = activeAfterFilter.indexOf(a);
+    return { x: COL_X.filter, y: 2.5 - ai * (CARD_H + 0.12) };
+  });
+
+  const mergeStack = ASSETS.map((a, i) => {
+    if (a.filtered) return filterStack[i];
+    const ai = activeAfterFilter.indexOf(a);
+    return { x: COL_X.merge, y: 2.5 - ai * (CARD_H + 0.12) };
+  });
+
+  const postMerge = ASSETS.filter(a => !a.filtered && !a.discarded);
+  const sorted = [...postMerge].sort((a, b) => CANONICAL.indexOf(a.kind) - CANONICAL.indexOf(b.kind));
+  const orderStack = ASSETS.map((a) => {
+    const si = sorted.indexOf(a);
+    if (si < 0) return mergeStack[ASSETS.indexOf(a)];
+    return { x: COL_X.order, y: 2.2 - si * (CARD_H + 0.15) };
+  });
+
+  // ---- PHASE: IDLE ----
+  if (phase.id === 'idle') {
+    cards.forEach((c, i) => {
+      c.targetX = c.homeX - 4;
+      c.targetY = c.homeY;
+      c.targetAlpha = 0;
+    });
+  }
+
+  // ---- PHASE: DISCOVER ----
+  if (phase.id === 'discover') {
+    cards.forEach((c, i) => {
+      const stagger = 0.08;
+      const ct = clamp((phaseT - i * stagger) / (1 - ASSETS.length * stagger));
+      const e = easeOut(ct);
+      c.targetX = lerp(c.homeX - 3, c.homeX, e);
+      c.targetY = c.homeY;
+      c.targetAlpha = e * globalAlpha;
+    });
+  }
+
+  // ---- PHASE: VALIDATE ----
+  if (phase.id === 'validate') {
+    cards.forEach((c, i) => {
+      const t = easeInOut(clamp(phaseT * 1.3));
+      c.targetX = lerp(c.homeX, validateStack[i].x, t);
+      c.targetY = lerp(c.homeY, validateStack[i].y, t);
+      c.targetAlpha = globalAlpha;
+
+      // Scan highlight
+      const scanProgress = easeInOut(phaseT);
+      const scanIdx = Math.floor(scanProgress * ASSETS.length);
+      if (i === scanIdx || i === scanIdx - 1) {
+        highlights[i].mat.opacity = 0.85 * globalAlpha;
+      }
+    });
+  }
+
+  // ---- PHASE: FILTER ----
+  if (phase.id === 'filter') {
+    targetTag.mat.opacity = easeOut(clamp(phaseT * 2.5)) * 0.9 * globalAlpha;
+    targetTag.sprite.position.set(COL_X.filter, 5.2, 0);
+
+    cards.forEach((c, i) => {
+      const t = easeInOut(clamp(phaseT * 1.2));
+      c.targetX = lerp(validateStack[i].x, filterStack[i].x, t);
+      c.targetY = lerp(validateStack[i].y, filterStack[i].y, t);
+      c.targetAlpha = globalAlpha;
+
+      if (c.asset.filtered) {
+        const ft = clamp((phaseT - 0.3) / 0.5);
+        c.targetAlpha = lerp(globalAlpha, 0.2 * globalAlpha, easeOut(ft));
+        grayOverlays[i].mat.opacity = easeOut(ft) * 0.75 * globalAlpha;
+
+        if (ft > 0.3) {
+          filteredTag.mat.opacity = easeOut((ft - 0.3) / 0.7) * 0.95 * globalAlpha;
+          filteredTag.sprite.position.set(filterStack[i].x, filterStack[i].y - 0.8, 0.1);
+        }
+      }
+    });
+  }
+
+  // ---- PHASE: INHERIT ----
+  if (phase.id === 'inherit') {
+    const identIdx = ASSETS.findIndex(a => a.id === 'identity');
+
+    cards.forEach((c, i) => {
+      if (c.asset.filtered) {
+        c.targetAlpha = 0;
+        return;
+      }
+      const t = easeInOut(clamp(phaseT * 1.5));
+      c.targetX = lerp(filterStack[i].x, mergeStack[i].x, t);
+      c.targetY = lerp(filterStack[i].y, mergeStack[i].y, t);
+      c.targetAlpha = globalAlpha;
+    });
+
+    // Ghost parent
+    const idCard = cards[identIdx];
+    const ghostAppear = easeOut(clamp(phaseT * 2.5));
+    const ghostMerge = easeInOut(clamp((phaseT - 0.45) / 0.4));
+
+    ghostMat.opacity = ghostAppear * 0.8 * (1 - ghostMerge) * globalAlpha;
+    ghostSprite.position.set(
+      lerp(idCard.targetX - 0.3, idCard.targetX, ghostMerge),
+      lerp(idCard.targetY + 1.3, idCard.targetY, ghostMerge),
+      0.05
+    );
+
+    // Highlight identity after merge
+    if (ghostMerge > 0.7) {
+      highlights[identIdx].mat.opacity = (ghostMerge - 0.7) / 0.3 * 0.8 * globalAlpha;
+      inheritTag.mat.opacity = (ghostMerge - 0.7) / 0.3 * 0.9 * globalAlpha;
+      inheritTag.sprite.position.set(idCard.targetX + 2, idCard.targetY, 0.1);
+    }
+  }
+
+  // ---- PHASE: MERGE (last-wins + concatenate) ----
+  if (phase.id === 'merge') {
+    const styleLibIdx = ASSETS.findIndex(a => a.id === 'style-lib');
+    const styleLocIdx = ASSETS.findIndex(a => a.id === 'style-local');
+    const ctxIdx = ASSETS.findIndex(a => a.id === 'context');
+    const sklIdx = ASSETS.findIndex(a => a.id === 'skills');
+
+    cards.forEach((c, i) => {
+      if (c.asset.filtered) { c.targetAlpha = 0; return; }
+      c.targetX = mergeStack[i].x;
+      c.targetY = mergeStack[i].y;
+      c.targetAlpha = globalAlpha;
+    });
+
+    // --- Last-wins (first half) ---
+    const lwT = clamp(phaseT * 2); // 0-1 over first half
+
+    if (lwT < 1) {
+      // Bring styles together
+      const alignT = easeInOut(clamp(lwT * 2));
+      const midY = (mergeStack[styleLibIdx].y + mergeStack[styleLocIdx].y) / 2;
+      cards[styleLibIdx].targetY = lerp(mergeStack[styleLibIdx].y, midY - 0.05, alignT);
+      cards[styleLocIdx].targetY = lerp(mergeStack[styleLocIdx].y, midY + CARD_H + 0.15, alignT);
+
+      // Resolve
+      const resolveT = easeInOut(clamp((lwT - 0.4) / 0.5));
+      if (resolveT > 0) {
+        highlights[styleLocIdx].mat.opacity = resolveT * 0.85 * globalAlpha;
+        grayOverlays[styleLibIdx].mat.opacity = resolveT * 0.7 * globalAlpha;
+        cards[styleLibIdx].targetAlpha = lerp(globalAlpha, 0.3 * globalAlpha, resolveT);
+        cards[styleLibIdx].targetY += resolveT * 1.2;
+
+        winsTag.mat.opacity = resolveT * 0.9 * globalAlpha;
+        winsTag.sprite.position.set(cards[styleLocIdx].targetX + 2, cards[styleLocIdx].targetY, 0.1);
+
+        discardedTag.mat.opacity = resolveT * 0.8 * globalAlpha;
+        discardedTag.sprite.position.set(cards[styleLibIdx].targetX + 2, cards[styleLibIdx].targetY, 0.1);
+      }
+    }
+
+    // --- Concatenate (second half) ---
+    const ccT = clamp((phaseT - 0.5) / 0.5);
+    if (ccT > 0) {
+      const stackT = easeInOut(clamp(ccT * 2));
+      const midY = (mergeStack[ctxIdx].y + mergeStack[sklIdx].y) / 2;
+      cards[ctxIdx].targetY = lerp(mergeStack[ctxIdx].y, midY - 0.05, stackT);
+      cards[sklIdx].targetY = lerp(mergeStack[sklIdx].y, midY + CARD_H + 0.12, stackT);
+
+      const lockT = easeOut(clamp((ccT - 0.4) / 0.5));
+      if (lockT > 0) {
+        highlights[ctxIdx].mat.opacity = lockT * 0.7 * globalAlpha;
+        highlights[sklIdx].mat.opacity = lockT * 0.7 * globalAlpha;
+        concatTag.mat.opacity = lockT * 0.9 * globalAlpha;
+        concatTag.sprite.position.set(cards[ctxIdx].targetX + 2, (cards[ctxIdx].targetY + cards[sklIdx].targetY) / 2 + CARD_H / 2, 0.1);
+      }
+    }
+  }
+
+  // ---- PHASE: ORDER ----
+  if (phase.id === 'order') {
+    cards.forEach((c, i) => {
+      if (c.asset.filtered || c.asset.discarded) { c.targetAlpha = 0; return; }
+      const t = easeInOut(phaseT);
+      c.targetX = lerp(mergeStack[i].x, orderStack[i].x, t);
+      c.targetY = lerp(mergeStack[i].y, orderStack[i].y, t);
+      c.targetAlpha = globalAlpha;
+    });
+  }
+
+  // ---- PHASE: COMPILE ----
+  if (phase.id === 'compile') {
+    const compressT = easeInOut(clamp(phaseT * 1.3));
+    const fadeT = easeInOut(clamp((phaseT - 0.3) / 0.4));
+
+    cards.forEach((c, i) => {
+      if (c.asset.filtered || c.asset.discarded) { c.targetAlpha = 0; return; }
+      c.targetX = lerp(orderStack[i].x, COL_X.bundle - 0.5, compressT);
+      c.targetY = lerp(orderStack[i].y, 0, compressT);
+      c.targetAlpha = lerp(globalAlpha, 0, fadeT);
+    });
+
+    // Bundle appears
+    bundleMat.opacity = easeOut(clamp((phaseT - 0.4) / 0.4)) * globalAlpha;
+  }
+
+  // ---- PHASE: RUNTIME ----
+  if (phase.id === 'runtime') {
+    cards.forEach(c => c.targetAlpha = 0);
+    bundleMat.opacity = globalAlpha;
+
+    // Memory pulse
+    const pulse = 0.85 + Math.sin(elapsed * 5) * 0.15;
+    bundleMat.opacity = globalAlpha * pulse;
+
+    // Runtime chips
+    rtChips.forEach((chip, ci) => {
+      const ct = easeOut(clamp((phaseT - ci * 0.15) / 0.6));
+      chip.mat.opacity = ct * 0.9 * globalAlpha;
+      chip.sprite.position.set(
+        lerp(COL_X.bundle + 4, COL_X.bundle + 2, ct * 0.6),
+        -1.5 - ci * 0.6,
+        0.1
+      );
+    });
+
+    rtLabel.mat.opacity = easeOut(clamp(phaseT * 2)) * 0.85 * globalAlpha;
+    rtLabel.sprite.position.set(COL_X.bundle + 3, -0.5, 0.1);
+  }
+
+  // ---- PHASE: REVEAL ----
+  if (phase.id === 'reveal') {
+    cards.forEach(c => c.targetAlpha = 0);
+    const fadeOut = easeInOut(clamp((phaseT - 0.2) / 0.8));
+    bundleMat.opacity = (1 - fadeOut) * globalAlpha;
+  }
+
+  // ---- UPDATE CARD POSITIONS ----
+  const lerpSpeed = 5;
+  cards.forEach((c, i) => {
+    c.x += (c.targetX - c.x) * (1 - Math.exp(-lerpSpeed * dt));
+    c.y += (c.targetY - c.y) * (1 - Math.exp(-lerpSpeed * dt));
+    c.alpha += (c.targetAlpha - c.alpha) * (1 - Math.exp(-lerpSpeed * dt));
+
+    c.sprite.position.set(c.x, c.y, 0);
+    c.mat.opacity = c.alpha;
+
+    // Gray overlay follows card
+    grayOverlays[i].sprite.position.set(c.x, c.y, 0.02);
+
+    // Highlight follows card
+    highlights[i].sprite.position.set(c.x, c.y, 0.01);
+  });
+
+  // ---- FLOW DOTS ----
+  dotTimer += dt;
+  if (dotTimer > 0.2 && cycleT > 2 && cycleT < 12) {
+    dotTimer = 0;
+    // Spawn dot on the arrow segment that matches current phase
+    const phaseToSeg = { validate: 0, filter: 1, inherit: 2, merge: 2, order: 3, compile: 4 };
+    const seg = phaseToSeg[phase.id];
+    if (seg !== undefined && seg < flowLines.length) {
+      const pts = flowLines[seg].geo.attributes.position.array;
+      spawnDot(pts[0], pts[1] + (Math.random() - 0.5) * 0.3, pts[3], pts[4], 0xaabbee, 0.5 + Math.random() * 0.3);
+    }
+  }
+
+  for (let i = dotPool.length - 1; i >= 0; i--) {
+    const d = dotPool[i];
+    d.t += dt * d.speed;
+    if (d.t > 1) {
+      scene.remove(d.mesh);
+      d.mesh.geometry.dispose();
+      d.mat.dispose();
+      dotPool.splice(i, 1);
+      continue;
+    }
+    d.mesh.position.x = lerp(d.x1, d.x2, d.t);
+    d.mesh.position.y = lerp(d.y1, d.y2, d.t);
+    d.mat.opacity = Math.sin(d.t * Math.PI) * 0.8 * globalAlpha;
+  }
+
+  renderer.render(scene, cam);
+}
+
+window.addEventListener('resize', () => {
+  const a = window.innerWidth / window.innerHeight;
+  cam.left = -viewH * a / 2;
+  cam.right = viewH * a / 2;
+  cam.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+animate();
+</script>
+</body>
+</html>

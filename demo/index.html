@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>stAIpler - Composing AI Instruction Layers</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #0a0a12; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  canvas { display: block; }
+
+  #overlay {
+    position: fixed; top: 0; left: 0; width: 100%; pointer-events: none; z-index: 10;
+    text-align: center; padding: 32px 20px 0;
+  }
+  #overlay svg {
+    width: 280px; height: auto; margin: 0 auto; display: block;
+    filter: drop-shadow(0 0 20px rgba(124, 58, 237, 0.3));
+  }
+  #overlay h2 {
+    font-size: 1.05rem; font-weight: 300; color: rgba(255,255,255,0.55);
+    letter-spacing: 0.12em; text-transform: uppercase; margin-top: 8px;
+  }
+
+  #timeline-container {
+    position: fixed; bottom: 0; left: 0; width: 100%; z-index: 10;
+    padding: 0 0 18px; pointer-events: none;
+  }
+  #phase-labels {
+    display: flex; justify-content: center; gap: 40px; margin-bottom: 8px;
+  }
+  .phase-label {
+    font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: rgba(255,255,255,0.25); transition: color 0.5s, text-shadow 0.5s;
+  }
+  .phase-label.active {
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 0 12px rgba(140,160,255,0.6);
+  }
+  #progress-bar {
+    width: 60%; max-width: 600px; height: 3px; margin: 0 auto;
+    background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;
+  }
+  #progress-fill {
+    height: 100%; width: 0%; border-radius: 2px;
+    background: linear-gradient(90deg, #4f46e5, #7c3aed, #a855f7);
+    transition: width 0.1s linear;
+  }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 222 68" width="222" height="68">
+    <defs>
+      <linearGradient id="f2" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#4f46e5"/>
+        <stop offset="50%" style="stop-color:#7c3aed"/>
+        <stop offset="100%" style="stop-color:#a855f7"/>
+      </linearGradient>
+    </defs>
+    <text x="0" y="50" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="50" font-weight="700" fill="#e2e8f0" letter-spacing="-1">st</text>
+    <path d="M52 12 L52 48 Q52 58 62 58 L94 58 Q104 58 104 48 L104 12"
+          fill="none" stroke="url(#f2)" stroke-width="4" stroke-linecap="round" opacity="0.35"/>
+    <text x="78" y="48" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="38" font-weight="800" fill="url(#f2)" text-anchor="middle" letter-spacing="1">AI</text>
+    <text x="108" y="50" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="50" font-weight="700" fill="#e2e8f0" letter-spacing="-1">pler</text>
+  </svg>
+  <h2>Composing AI Instruction Layers</h2>
+</div>
+
+<div id="timeline-container">
+  <div id="phase-labels">
+    <span class="phase-label" data-phase="0">Assets</span>
+    <span class="phase-label" data-phase="1">Compose</span>
+    <span class="phase-label" data-phase="2">Compile</span>
+    <span class="phase-label" data-phase="3">Bundle</span>
+  </div>
+  <div id="progress-bar"><div id="progress-fill"></div></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---- Constants ----
+const CYCLE_DURATION = 23; // seconds
+const PHASE_TIMES = [
+  { start: 0, end: 5.5, name: 'assets' },
+  { start: 5.5, end: 11, name: 'compose' },
+  { start: 11, end: 16.5, name: 'compile' },
+  { start: 16.5, end: 23, name: 'bundle' },
+];
+
+const LAYERS = [
+  { name: 'identity',    color: 0x42a5f5 },
+  { name: 'goals',       color: 0x66bb6a },
+  { name: 'context',     color: 0xffa726 },
+  { name: 'constraints', color: 0xef5350 },
+  { name: 'skills',      color: 0xab47bc },
+  { name: 'style',       color: 0xec407a },
+  { name: 'examples',    color: 0x26a69a },
+  { name: 'tools',       color: 0xffee58 },
+  { name: 'memory',      color: 0x26c6da },
+];
+
+// ---- Renderer, Scene, Camera ----
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0a12, 0.025);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 2, 14);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 5;
+controls.maxDistance = 40;
+controls.autoRotate = false;
+controls.target.set(0, 0, 0);
+
+// ---- Lights ----
+scene.add(new THREE.AmbientLight(0x8888cc, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+dirLight.position.set(5, 10, 7);
+scene.add(dirLight);
+const pointLight = new THREE.PointLight(0x6ec6ff, 0.8, 30);
+pointLight.position.set(-4, 4, 4);
+scene.add(pointLight);
+const pointLight2 = new THREE.PointLight(0xff80ab, 0.5, 30);
+pointLight2.position.set(4, -2, -4);
+scene.add(pointLight2);
+
+// ---- Background grid ----
+const gridHelper = new THREE.GridHelper(40, 40, 0x222244, 0x151530);
+gridHelper.position.y = -4;
+scene.add(gridHelper);
+
+// ---- Particle field ----
+const particleCount = 600;
+const particleGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(particleCount * 3);
+const pSizes = new Float32Array(particleCount);
+for (let i = 0; i < particleCount; i++) {
+  pPos[i*3]   = (Math.random() - 0.5) * 40;
+  pPos[i*3+1] = (Math.random() - 0.5) * 20;
+  pPos[i*3+2] = (Math.random() - 0.5) * 40;
+  pSizes[i] = Math.random() * 2 + 0.5;
+}
+particleGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+particleGeo.setAttribute('size', new THREE.BufferAttribute(pSizes, 1));
+
+const particleMat = new THREE.PointsMaterial({
+  color: 0x6677aa, size: 0.06, transparent: true, opacity: 0.5,
+  sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const particles = new THREE.Points(particleGeo, particleMat);
+scene.add(particles);
+
+// ---- Create text canvas texture ----
+function makeTextTexture(text, baseColor) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  const r = (baseColor >> 16) & 0xff;
+  const g = (baseColor >> 8) & 0xff;
+  const b = baseColor & 0xff;
+
+  // Dark translucent background for contrast
+  ctx.fillStyle = `rgba(8, 8, 16, 0.85)`;
+  ctx.fillRect(0, 0, 1024, 512);
+
+  // Colored border
+  ctx.strokeStyle = `rgb(${r},${g},${b})`;
+  ctx.lineWidth = 6;
+  ctx.strokeRect(12, 12, 1000, 488);
+
+  // Inner glow border
+  ctx.strokeStyle = `rgba(${r},${g},${b},0.3)`;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(20, 20, 984, 472);
+
+  // Fake markdown lines (subtle)
+  ctx.fillStyle = `rgba(${r},${g},${b},0.12)`;
+  for (let i = 0; i < 6; i++) {
+    const w = 300 + Math.random() * 500;
+    ctx.fillRect(50, 200 + i * 42, w, 14);
+  }
+
+  // Frontmatter hint at top
+  ctx.fillStyle = `rgba(${r},${g},${b},0.25)`;
+  ctx.font = '26px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('---', 50, 170);
+  ctx.fillText(`kind: ${text.toLowerCase()}`, 50, 198);
+
+  // Large readable label
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 72px "Segoe UI", system-ui, -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text.toLowerCase() + '.md', 512, 100);
+
+  // Subtle color accent line under title
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillRect(200, 118, 624, 3);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// ---- Card class ----
+class Card {
+  constructor(layer, index) {
+    this.layer = layer;
+    this.index = index;
+    this.color = new THREE.Color(layer.color);
+
+    const geo = new THREE.BoxGeometry(3.2, 2, 0.06);
+    const tex = makeTextTexture(layer.name, layer.color);
+    // Front face with text
+    const frontMat = new THREE.MeshPhysicalMaterial({
+      map: tex,
+      color: 0xffffff,
+      metalness: 0.05,
+      roughness: 0.5,
+      transparent: true,
+      opacity: 1,
+      emissive: new THREE.Color(layer.color),
+      emissiveIntensity: 0.15,
+      side: THREE.FrontSide,
+    });
+    // Back face plain colored
+    const backMat = new THREE.MeshPhysicalMaterial({
+      color: layer.color,
+      metalness: 0.1,
+      roughness: 0.5,
+      transparent: true,
+      opacity: 0.6,
+      emissive: new THREE.Color(layer.color),
+      emissiveIntensity: 0.1,
+      side: THREE.BackSide,
+    });
+    this.mesh = new THREE.Group();
+    const frontMesh = new THREE.Mesh(geo, frontMat);
+    const backMesh = new THREE.Mesh(geo, backMat);
+    this.mesh.add(frontMesh);
+    this.mesh.add(backMesh);
+    this.frontMat = frontMat;
+    this.backMat = backMat;
+
+    // Edge glow
+    const edgeGeo = new THREE.EdgesGeometry(geo);
+    const edgeMat = new THREE.LineBasicMaterial({ color: layer.color, transparent: true, opacity: 0.6 });
+    this.edges = new THREE.LineSegments(edgeGeo, edgeMat);
+    this.mesh.add(this.edges);
+
+    scene.add(this.mesh);
+
+    // Scattered positions - arranged in a wider arc facing camera
+    const angle = (index / LAYERS.length) * Math.PI * 1.6 - Math.PI * 0.8;
+    const rad = 5 + Math.random() * 1.5;
+    this.scatterPos = new THREE.Vector3(
+      Math.sin(angle) * rad,
+      (Math.random() - 0.5) * 3.5,
+      Math.cos(angle) * rad * 0.4  // flatten Z so cards face camera more
+    );
+    // Face toward camera (small tilt for natural look)
+    this.scatterRot = new THREE.Euler(
+      (Math.random() - 0.5) * 0.15,
+      Math.atan2(this.scatterPos.x, this.scatterPos.z + 14) + Math.PI,
+      (Math.random() - 0.5) * 0.1
+    );
+
+    // Stack position - tilted back with clear vertical separation per layer
+    const spacing = 0.7;
+    const totalHeight = (LAYERS.length - 1) * spacing;
+    this.stackPos = new THREE.Vector3(
+      0,
+      totalHeight / 2 - index * spacing,
+      -index * 0.15  // slight Z stagger for depth
+    );
+    this.stackRot = new THREE.Euler(-0.75, 0, 0); // tilt back so layers read like a cascade
+
+    // Init position
+    this.mesh.position.copy(this.scatterPos);
+    this.mesh.rotation.copy(this.scatterRot);
+
+    this.bobOffset = Math.random() * Math.PI * 2;
+    this.bobSpeed = 0.5 + Math.random() * 0.3;
+
+    // For filtering effect (cards 3 and 7 get filtered)
+    this.filtered = (index === 3 || index === 7);
+  }
+}
+
+const cards = LAYERS.map((l, i) => new Card(l, i));
+
+// ---- Inheritance lines (compose phase) ----
+const lineMat = new THREE.LineBasicMaterial({
+  color: 0x8888ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending
+});
+const lineConnections = [];
+const connectionPairs = [[0,1],[1,2],[2,4],[4,5],[6,8],[3,7]];
+for (const [a, b] of connectionPairs) {
+  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+  const line = new THREE.Line(geo, lineMat.clone());
+  scene.add(line);
+  lineConnections.push({ line, a, b });
+}
+
+// ---- Bundle object ----
+const bundleGroup = new THREE.Group();
+const bundleGeo = new THREE.BoxGeometry(3.4, 3.4, 0.5);
+const bundleMat = new THREE.MeshPhysicalMaterial({
+  color: 0x6644cc,
+  metalness: 0.3,
+  roughness: 0.2,
+  transparent: true,
+  opacity: 0,
+  emissive: new THREE.Color(0x6644cc),
+  emissiveIntensity: 0.3,
+});
+const bundleMesh = new THREE.Mesh(bundleGeo, bundleMat);
+bundleGroup.add(bundleMesh);
+
+// Bundle edge glow
+const bundleEdgeGeo = new THREE.EdgesGeometry(bundleGeo);
+const bundleEdgeMat = new THREE.LineBasicMaterial({ color: 0xb388ff, transparent: true, opacity: 0 });
+const bundleEdges = new THREE.LineSegments(bundleEdgeGeo, bundleEdgeMat);
+bundleMesh.add(bundleEdges);
+
+bundleGroup.position.set(0, 0, 0);
+scene.add(bundleGroup);
+
+// Bundle metadata labels
+function makeMetaSprite(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(180,200,255,0.85)';
+  ctx.font = '24px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 128, 40);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(3, 0.75, 1);
+  return sprite;
+}
+const metaLabels = [
+  makeMetaSprite('hash: a7f3c2e1'),
+  makeMetaSprite('v1.2.0 | 3847 tokens'),
+  makeMetaSprite('9 layers compiled'),
+];
+metaLabels[0].position.set(0, 3, 0);
+metaLabels[1].position.set(0, -2.8, 0);
+metaLabels[2].position.set(0, -3.6, 0);
+metaLabels.forEach(s => bundleGroup.add(s));
+
+// ---- Ghost provenance sprites ----
+const ghosts = [];
+for (let i = 0; i < LAYERS.length; i++) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const c = LAYERS[i].color;
+  const r = (c >> 16) & 0xff, g = (c >> 8) & 0xff, b = c & 0xff;
+  ctx.strokeStyle = `rgba(${r},${g},${b},0.6)`;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(4, 4, 120, 56);
+  ctx.fillStyle = `rgba(${r},${g},${b},0.4)`;
+  ctx.font = '16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(LAYERS[i].name, 64, 38);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.5, 0.75, 1);
+  const angle = (i / LAYERS.length) * Math.PI * 2;
+  sprite.position.set(Math.cos(angle) * 4.5, Math.sin(angle) * 3, -1);
+  bundleGroup.add(sprite);
+  ghosts.push(sprite);
+}
+
+// ---- Stapler effect particles ----
+const staplerParticleCount = 200;
+const staplerGeo = new THREE.BufferGeometry();
+const spPos = new Float32Array(staplerParticleCount * 3);
+const spColors = new Float32Array(staplerParticleCount * 3);
+for (let i = 0; i < staplerParticleCount; i++) {
+  spPos[i*3] = (Math.random()-0.5) * 4;
+  spPos[i*3+1] = (Math.random()-0.5) * 6;
+  spPos[i*3+2] = (Math.random()-0.5) * 2;
+  spColors[i*3] = 0.6 + Math.random()*0.4;
+  spColors[i*3+1] = 0.4 + Math.random()*0.3;
+  spColors[i*3+2] = 1.0;
+}
+staplerGeo.setAttribute('position', new THREE.BufferAttribute(spPos, 3));
+staplerGeo.setAttribute('color', new THREE.BufferAttribute(spColors, 3));
+const staplerMat = new THREE.PointsMaterial({
+  size: 0.08, transparent: true, opacity: 0, vertexColors: true,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const staplerParticles = new THREE.Points(staplerGeo, staplerMat);
+scene.add(staplerParticles);
+
+// ---- Staple shape (U-shaped, matching logo) ----
+const stapleShape = new THREE.Shape();
+const sw = 2.4; // half-width of staple
+const sh = 3.5; // height of staple legs
+const sr = 0.4; // corner radius
+const st = 0.12; // thickness
+// Outer U
+stapleShape.moveTo(-sw, sh);
+stapleShape.lineTo(-sw, sr);
+stapleShape.quadraticCurveTo(-sw, 0, -sw + sr, 0);
+stapleShape.lineTo(sw - sr, 0);
+stapleShape.quadraticCurveTo(sw, 0, sw, sr);
+stapleShape.lineTo(sw, sh);
+stapleShape.lineTo(sw - st, sh);
+stapleShape.lineTo(sw - st, sr + st);
+stapleShape.quadraticCurveTo(sw - st, st, sw - sr, st);
+stapleShape.lineTo(-sw + sr, st);
+stapleShape.quadraticCurveTo(-sw + st, st, -sw + st, sr + st);
+stapleShape.lineTo(-sw + st, sh);
+stapleShape.closePath();
+
+const stapleExtrudeSettings = { depth: 0.15, bevelEnabled: false };
+const stapleGeo = new THREE.ExtrudeGeometry(stapleShape, stapleExtrudeSettings);
+const staplerArmMat = new THREE.MeshPhysicalMaterial({
+  color: 0x7c3aed, metalness: 0.6, roughness: 0.15, transparent: true, opacity: 0,
+  emissive: new THREE.Color(0x4f46e5), emissiveIntensity: 0.3,
+});
+const staplerArm = new THREE.Mesh(stapleGeo, staplerArmMat);
+staplerArm.rotation.set(0, 0, 0);
+staplerArm.position.set(0, 4, -0.075);
+scene.add(staplerArm);
+
+// ---- Merge flash planes ----
+const flashGeo = new THREE.PlaneGeometry(3.5, 0.15);
+const flashMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+});
+const mergeFlashes = [];
+for (let i = 0; i < 4; i++) {
+  const flash = new THREE.Mesh(flashGeo, flashMat.clone());
+  flash.position.set(0, 1.5 - i * 1.2, 0.05);
+  scene.add(flash);
+  mergeFlashes.push(flash);
+}
+
+// ---- Easing helpers ----
+function easeInOutCubic(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+function easeOutQuart(t) { return 1 - Math.pow(1-t,4); }
+function easeInQuad(t) { return t*t; }
+function clamp01(t) { return Math.max(0, Math.min(1, t)); }
+function lerp(a, b, t) { return a + (b-a)*t; }
+function lerpV3(out, a, b, t) { out.x=lerp(a.x,b.x,t); out.y=lerp(a.y,b.y,t); out.z=lerp(a.z,b.z,t); }
+function lerpEuler(out, a, b, t) { out.x=lerp(a.x,b.x,t); out.y=lerp(a.y,b.y,t); out.z=lerp(a.z,b.z,t); }
+
+// ---- UI ----
+const progressFill = document.getElementById('progress-fill');
+const phaseLabels = document.querySelectorAll('.phase-label');
+
+function updateUI(cycleT) {
+  progressFill.style.width = (cycleT / CYCLE_DURATION * 100) + '%';
+  let currentPhase = 0;
+  for (let i = 0; i < PHASE_TIMES.length; i++) {
+    if (cycleT >= PHASE_TIMES[i].start && cycleT < PHASE_TIMES[i].end) { currentPhase = i; break; }
+    if (i === PHASE_TIMES.length - 1) currentPhase = i;
+  }
+  phaseLabels.forEach((el, i) => {
+    el.classList.toggle('active', i === currentPhase);
+  });
+}
+
+// ---- Camera animation targets ----
+const camTargets = {
+  assets:  { pos: new THREE.Vector3(0, 2, 14), target: new THREE.Vector3(0, 0, 0) },
+  compose: { pos: new THREE.Vector3(5, 5, 10), target: new THREE.Vector3(0, 0, -0.5) },
+  compile: { pos: new THREE.Vector3(4, 3, 8), target: new THREE.Vector3(0, 0, 0) },
+  bundle:  { pos: new THREE.Vector3(0, 1, 10), target: new THREE.Vector3(0, 0, 0) },
+};
+
+let autoCamera = true;
+controls.addEventListener('start', () => { autoCamera = false; });
+
+// ---- Animation loop ----
+const clock = new THREE.Clock();
+let elapsed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  elapsed += dt;
+  const cycleT = elapsed % CYCLE_DURATION;
+
+  updateUI(cycleT);
+
+  // Determine phase
+  const phaseIndex = PHASE_TIMES.findIndex(p => cycleT >= p.start && cycleT < p.end);
+  const phase = PHASE_TIMES[Math.max(0, phaseIndex)];
+  const phaseT = clamp01((cycleT - phase.start) / (phase.end - phase.start));
+
+  // ---- Animate camera ----
+  if (autoCamera) {
+    const phaseName = phase.name;
+    const camT = camTargets[phaseName];
+    const camPrev = phaseIndex > 0 ? camTargets[PHASE_TIMES[phaseIndex-1].name] : camT;
+    const blendT = easeInOutCubic(clamp01(phaseT * 3)); // blend in first third of phase
+    lerpV3(camera.position, camPrev.pos, camT.pos, blendT);
+    lerpV3(controls.target, camPrev.target, camT.target, blendT);
+
+    // Gentle auto-orbit during assets phase
+    if (phaseName === 'assets') {
+      const orbitAngle = cycleT * 0.15;
+      camera.position.x = Math.sin(orbitAngle) * 14;
+      camera.position.z = Math.cos(orbitAngle) * 14;
+      camera.position.y = 2 + Math.sin(cycleT * 0.3) * 0.5;
+    }
+  }
+
+  // ---- Phase: Assets ----
+  if (phase.name === 'assets') {
+    for (const card of cards) {
+      // Reset from previous cycle
+      card.frontMat.opacity = 1;
+      card.backMat.opacity = 0.6;
+      card.frontMat.emissiveIntensity = 0.15;
+      card.mesh.visible = true;
+      card.edges.material.opacity = 0.6;
+
+      const bob = Math.sin(elapsed * card.bobSpeed + card.bobOffset) * 0.15;
+      card.mesh.position.copy(card.scatterPos);
+      card.mesh.position.y += bob;
+      card.mesh.rotation.copy(card.scatterRot);
+      card.mesh.rotation.y += Math.sin(elapsed * 0.2 + card.bobOffset) * 0.05;
+      card.mesh.scale.set(1, 1, 1);
+    }
+    // Hide bundle/stapler stuff
+    bundleMat.opacity = 0;
+    bundleEdgeMat.opacity = 0;
+    metaLabels.forEach(s => s.material.opacity = 0);
+    ghosts.forEach(s => s.material.opacity = 0);
+    staplerMat.opacity = 0;
+    staplerArmMat.opacity = 0;
+    mergeFlashes.forEach(f => f.material.opacity = 0);
+    lineConnections.forEach(lc => lc.line.material.opacity = 0);
+  }
+
+  // ---- Phase: Compose ----
+  if (phase.name === 'compose') {
+    const slideT = easeInOutCubic(clamp01(phaseT * 1.8));
+
+    for (const card of cards) {
+      lerpV3(card.mesh.position, card.scatterPos, card.stackPos, slideT);
+      lerpEuler(card.mesh.rotation, card.scatterRot, card.stackRot, slideT);
+      card.mesh.scale.set(1, 1, 1);
+
+      // Filtering effect for certain cards
+      if (card.filtered && phaseT > 0.6) {
+        const filterT = clamp01((phaseT - 0.6) / 0.3);
+        card.frontMat.opacity = lerp(1, 0.25, filterT);
+        card.backMat.opacity = lerp(0.6, 0.15, filterT);
+        card.frontMat.emissiveIntensity = lerp(0.15, 0.01, filterT);
+        card.edges.material.opacity = lerp(0.6, 0.1, filterT);
+      }
+    }
+
+    // Show inheritance lines after cards are stacked
+    if (phaseT > 0.5) {
+      const lineT = clamp01((phaseT - 0.5) / 0.3);
+      for (const lc of lineConnections) {
+        lc.line.material.opacity = lineT * 0.5;
+        const posArr = lc.line.geometry.attributes.position.array;
+        const pA = cards[lc.a].mesh.position;
+        const pB = cards[lc.b].mesh.position;
+        posArr[0]=pA.x+1.7; posArr[1]=pA.y; posArr[2]=pA.z;
+        posArr[3]=pB.x+1.7; posArr[4]=pB.y; posArr[5]=pB.z;
+        lc.line.geometry.attributes.position.needsUpdate = true;
+      }
+    }
+
+    staplerMat.opacity = 0;
+    staplerArmMat.opacity = 0;
+    bundleMat.opacity = 0;
+    bundleEdgeMat.opacity = 0;
+    metaLabels.forEach(s => s.material.opacity = 0);
+    ghosts.forEach(s => s.material.opacity = 0);
+  }
+
+  // ---- Phase: Compile ----
+  if (phase.name === 'compile') {
+    // Hide inheritance lines
+    lineConnections.forEach(lc => lc.line.material.opacity = Math.max(0, lc.line.material.opacity - dt * 2));
+
+    // U-staple descends to clamp the stack, then lifts away
+    const armDownT = easeInOutCubic(clamp01(phaseT * 3));
+    const armUpT = easeOutQuart(clamp01((phaseT - 0.4) / 0.3));
+    staplerArmMat.opacity = clamp01(phaseT * 5) * (1 - clamp01((phaseT - 0.7) / 0.3));
+    const armY = phaseT < 0.4
+      ? lerp(6, -1, armDownT)   // descend so U bottom wraps the stack
+      : lerp(-1, 8, armUpT);    // lift away
+    staplerArm.position.set(0, armY, -0.075);
+    staplerArm.rotation.x = -0.75; // match the card tilt
+
+    // Stapler particles burst
+    if (phaseT > 0.3 && phaseT < 0.7) {
+      const sparkT = (phaseT - 0.3) / 0.4;
+      staplerMat.opacity = Math.sin(sparkT * Math.PI) * 0.8;
+      const posArr = staplerParticles.geometry.attributes.position.array;
+      for (let i = 0; i < staplerParticleCount; i++) {
+        posArr[i*3]   += (Math.random()-0.5) * 0.1;
+        posArr[i*3+1] += (Math.random()-0.5) * 0.1;
+        posArr[i*3+2] += (Math.random()-0.5) * 0.05;
+      }
+      staplerParticles.geometry.attributes.position.needsUpdate = true;
+    } else {
+      staplerMat.opacity = Math.max(0, staplerMat.opacity - dt * 3);
+    }
+
+    // Cards compress together
+    const compressT = easeInOutCubic(clamp01((phaseT - 0.2) / 0.6));
+    for (const card of cards) {
+      const targetY = lerp(card.stackPos.y, 0, compressT);
+      card.mesh.position.y = targetY;
+      card.mesh.position.x = card.stackPos.x;
+      card.mesh.position.z = card.stackPos.z;
+      card.mesh.rotation.set(0, 0, 0);
+
+      // Merge visual: scale Z to show compression
+      const scaleZ = lerp(1, 3, compressT);
+      card.mesh.scale.set(1, 1, scaleZ);
+
+      // Fade all cards toward end of compile
+      if (phaseT > 0.7) {
+        const fadeT = clamp01((phaseT - 0.7) / 0.3);
+        card.frontMat.opacity = lerp(card.filtered ? 0.25 : 1, 0, fadeT);
+        card.backMat.opacity = lerp(card.filtered ? 0.15 : 0.6, 0, fadeT);
+        card.edges.material.opacity = lerp(card.filtered ? 0.1 : 0.6, 0, fadeT);
+      }
+
+      // Emissive flash during staple moment
+      if (phaseT > 0.3 && phaseT < 0.5) {
+        card.frontMat.emissiveIntensity = 0.5;
+      } else {
+        card.frontMat.emissiveIntensity = 0.15;
+      }
+    }
+
+    // Merge flashes
+    if (phaseT > 0.33 && phaseT < 0.55) {
+      const flashIntensity = Math.sin(((phaseT - 0.33) / 0.22) * Math.PI);
+      mergeFlashes.forEach((f, i) => {
+        f.material.opacity = flashIntensity * 0.6;
+        f.position.y = lerp(1.5 - i * 1.2, 0, compressT);
+      });
+    } else {
+      mergeFlashes.forEach(f => f.material.opacity = Math.max(0, f.material.opacity - dt * 4));
+    }
+
+    bundleMat.opacity = 0;
+    bundleEdgeMat.opacity = 0;
+    metaLabels.forEach(s => s.material.opacity = 0);
+    ghosts.forEach(s => s.material.opacity = 0);
+  }
+
+  // ---- Phase: Bundle ----
+  if (phase.name === 'bundle') {
+    // Hide cards
+    for (const card of cards) {
+      card.frontMat.opacity = 0;
+      card.backMat.opacity = 0;
+      card.edges.material.opacity = 0;
+    }
+    staplerMat.opacity = 0;
+    staplerArmMat.opacity = 0;
+    lineConnections.forEach(lc => lc.line.material.opacity = 0);
+    mergeFlashes.forEach(f => f.material.opacity = 0);
+
+    // Show bundle
+    const appearT = easeOutQuart(clamp01(phaseT * 2.5));
+    bundleMat.opacity = appearT * 0.85;
+    bundleEdgeMat.opacity = appearT * 0.8;
+
+    // Pulsing glow
+    const pulse = 0.3 + Math.sin(elapsed * 3) * 0.15;
+    bundleMat.emissiveIntensity = pulse;
+
+    // Rotate bundle gently
+    bundleMesh.rotation.y = elapsed * 0.4;
+    bundleMesh.rotation.x = Math.sin(elapsed * 0.3) * 0.1;
+
+    // Metadata labels
+    if (phaseT > 0.25) {
+      const metaT = easeOutQuart(clamp01((phaseT - 0.25) / 0.3));
+      metaLabels.forEach((s, i) => {
+        s.material.opacity = metaT * 0.8;
+      });
+    }
+
+    // Ghost provenance trail
+    if (phaseT > 0.4) {
+      const ghostT = easeOutQuart(clamp01((phaseT - 0.4) / 0.4));
+      ghosts.forEach((s, i) => {
+        s.material.opacity = ghostT * 0.35;
+        const angle = (i / LAYERS.length) * Math.PI * 2 + elapsed * 0.2;
+        s.position.x = Math.cos(angle) * 4.5;
+        s.position.y = Math.sin(angle) * 3;
+      });
+    }
+
+    // Fade out at end for loop
+    if (phaseT > 0.85) {
+      const fadeOutT = clamp01((phaseT - 0.85) / 0.15);
+      bundleMat.opacity *= (1 - fadeOutT);
+      bundleEdgeMat.opacity *= (1 - fadeOutT);
+      metaLabels.forEach(s => s.material.opacity *= (1 - fadeOutT));
+      ghosts.forEach(s => s.material.opacity *= (1 - fadeOutT));
+    }
+  }
+
+  // ---- Animate background particles ----
+  const pPositions = particles.geometry.attributes.position.array;
+  for (let i = 0; i < particleCount; i++) {
+    pPositions[i*3+1] += Math.sin(elapsed * 0.3 + i) * 0.002;
+    pPositions[i*3]   += Math.cos(elapsed * 0.2 + i * 0.5) * 0.001;
+  }
+  particles.geometry.attributes.position.needsUpdate = true;
+  particles.rotation.y = elapsed * 0.01;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// ---- Resize handler ----
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Re-enable auto camera on double-click
+renderer.domElement.addEventListener('dblclick', () => { autoCamera = true; });
+
+animate();
+</script>
+</body>
+</html>
