@@ -1,0 +1,54 @@
+// @staipler/core - public API
+export { compile as buildStack } from './compiler.js';
+export { validateAssets as validateStack } from './validator.js';
+export { parseAssetFile as parseAsset } from './parser.js';
+export { loadContracts, evaluateContract } from './contracts.js';
+export { resolveAssetPath, resolveInheritanceTarget, findProjectRoot } from './resolver.js';
+export { mergeAssets } from './merge.js';
+
+// Schemas
+export {
+  AssetFrontmatterSchema,
+  StackDefinitionSchema,
+  LAYER_TYPES,
+  STATIC_LAYER_TYPES,
+  RUNTIME_LAYER_TYPES,
+  REQUIRED_LAYER_TYPES,
+  DEFAULT_MERGE_STRATEGIES,
+  CANONICAL_SECTION_ORDER,
+} from './schema.js';
+
+// Adapters
+export { nativeAdapter } from './adapters/native.js';
+export { skillAdapter } from './adapters/skill.js';
+export { copilotAdapter } from './adapters/copilot.js';
+export type { Adapter } from './adapters/index.js';
+
+// Types
+export type {
+  Asset,
+  AssetFrontmatter,
+  AssetReference,
+  BuildConfig,
+  CompileTarget,
+  CompiledBundle,
+  CompiledSection,
+  CompileWarning,
+  ContractDefinition,
+  ContractResult,
+  LayerType,
+  MergeStrategy,
+  ResolvedAssetInfo,
+  StackDefinition,
+  StaticLayerType,
+  RuntimeLayerType,
+} from './types.js';
+
+// Errors
+export {
+  StaiplerError,
+  ParseError,
+  ResolveError,
+  ValidationError,
+  CompileError,
+} from './errors.js';

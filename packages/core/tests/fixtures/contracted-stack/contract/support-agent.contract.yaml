@@ -1,0 +1,10 @@
+name: support-agent
+description: Structural requirements for the support agent asset set
+scope: asset-set
+applies_to:
+  tags: [support]
+requires:
+  must_have_kinds: [skills, context, constraints]
+  all_must_declare:
+    compatibility:
+      models: [anthropic]

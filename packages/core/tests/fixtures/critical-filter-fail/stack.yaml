@@ -1,0 +1,8 @@
+name: critical-filter-fail
+version: 1.0.0
+description: Stack where target filter removes last identity asset
+includes:
+  - asset: core/identity
+build:
+  target:
+    modelFamily: google

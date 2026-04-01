@@ -1,0 +1,8 @@
+name: contracted-stack
+version: 1.0.0
+description: Stack with user contract validation
+includes:
+  - asset: core/identity
+  - asset: support/skills
+  - asset: support/context
+  - asset: support/constraints

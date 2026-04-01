@@ -1,0 +1,107 @@
+graph TB
+    subgraph "Authoring Layer"
+        L1[library/core/identity.md]
+        L2[library/core/safety.md]
+        L3[library/support/context.md]
+        L4[library/support/skills.md]
+        S1[stacks/customer-support/stack.yaml]
+        S2[stacks/customer-support/context.md]
+        S3[stacks/customer-support/skills.md]
+        C1[contracts/support-agent.contract.yaml]
+    end
+
+    subgraph "External Sources (Phase 1.5)"
+        EX1[skills.sh SKILL.md]
+        EX2[Copilot instructions.md]
+        EX3[GitHub repos]
+    end
+
+    subgraph "Adapter Chain"
+        AN[Native Adapter]
+        AS[Skill Adapter - stub]
+        AC[Copilot Adapter - stub]
+    end
+
+    subgraph "Compiler Pipeline"
+        direction TB
+        R[1. Resolver<br/>Locate files by path<br/>./ = stack-local<br/>else = library/]
+        P[2. Parser<br/>gray-matter frontmatter<br/>+ Adapter chain]
+        V1[3. Built-in Validation<br/>Zod schema check<br/>inheritance cycles<br/>ref integrity]
+        V2[4. User Contract Validation<br/>Load .contract.yaml<br/>asset-set requirements]
+        F[5. Target Filter<br/>Exclude incompatible assets<br/>Critical layer protection]
+        I[6. Inheritance<br/>Max depth 2<br/>Parent body prepended<br/>Child metadata wins]
+        G[7. Group + Sort<br/>Group by layer type<br/>Sort by priority 0-100]
+        M[8. Merge Engine<br/>Per-layer strategy<br/>+ stack overrides]
+        O[9. Canonical Ordering<br/>identity - goals - context<br/>- constraints - skills - style<br/>- examples - tools - memory]
+        A[10. Assemble + Hash<br/>fullText + SHA-256<br/>+ provenance trace]
+    end
+
+    subgraph "Compiled Bundle Output"
+        BF[fullText<br/>Ready-to-use prompt]
+        BS[sections[]<br/>Per-layer access]
+        BP[Provenance<br/>resolvedAssets<br/>compileOrder<br/>contractResults<br/>warnings + hash]
+        BM[metadata<br/>tokenEstimate<br/>assetCount<br/>buildConfig]
+    end
+
+    subgraph "Consumers"
+        CLI[staipler build<br/>staipler validate]
+        SDK["import { buildStack }<br/>from '@staipler/core'"]
+        APP[Your AI App<br/>LLM system prompt]
+    end
+
+    %% External to Adapters
+    EX1 -.-> AS
+    EX2 -.-> AC
+    EX3 -.-> AS
+
+    %% Authoring to Adapters to Pipeline
+    L1 & L2 & L3 & L4 --> AN
+    S2 & S3 --> AN
+    AN & AS & AC --> P
+    S1 --> R
+    R --> P
+    P --> V1
+    C1 --> V2
+    V1 --> V2
+    V2 --> F
+    F --> I
+    I --> G
+    G --> M
+    M --> O
+    O --> A
+
+    %% Pipeline to Output
+    A --> BF & BS & BP & BM
+
+    %% Output to Consumers
+    BF --> CLI & SDK
+    BS --> SDK
+    BP --> CLI & SDK
+    CLI --> APP
+    SDK --> APP
+
+    %% Merge strategy detail
+    subgraph "Merge Rules"
+        direction LR
+        MW[identity: last-wins<br/>style: last-wins]
+        MC[goals: concatenate<br/>context: concatenate<br/>constraints: concatenate<br/>skills: concatenate<br/>examples: concatenate<br/>tools: concatenate<br/>memory: concatenate]
+    end
+
+    M -.-> MW & MC
+
+    %% Styling
+    classDef asset fill:#2d5016,stroke:#4a8c2a,color:#fff
+    classDef stack fill:#1a3a5c,stroke:#2e6da4,color:#fff
+    classDef contract fill:#5c1a3a,stroke:#a42e6d,color:#fff
+    classDef pipeline fill:#3a3a1a,stroke:#8c8c2a,color:#fff
+    classDef output fill:#1a3a3a,stroke:#2a8c8c,color:#fff
+    classDef consumer fill:#3a1a5c,stroke:#6d2ea4,color:#fff
+    classDef external fill:#444,stroke:#888,color:#ccc
+
+    class L1,L2,L3,L4,S2,S3 asset
+    class S1 stack
+    class C1 contract
+    class R,P,V1,V2,F,I,G,M,O,A pipeline
+    class BF,BS,BP,BM output
+    class CLI,SDK,APP consumer
+    class EX1,EX2,EX3 external

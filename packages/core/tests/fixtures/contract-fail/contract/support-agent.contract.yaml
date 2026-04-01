@@ -1,0 +1,7 @@
+name: support-agent
+description: Requires constraints kind which is missing
+scope: asset-set
+applies_to:
+  tags: [support]
+requires:
+  must_have_kinds: [skills, context, constraints]

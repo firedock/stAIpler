@@ -1,0 +1,104 @@
+{
+  "$ref": "#/definitions/StackDefinition",
+  "definitions": {
+    "StackDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[\\w.]+)?(?:\\+[\\w.]+)?$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "includes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "asset": {
+                "type": "string",
+                "minLength": 1
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "asset"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "overrides": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "build": {
+          "type": "object",
+          "properties": {
+            "max_tokens": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "merge": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "enum": [
+                  "concatenate",
+                  "last-wins"
+                ]
+              },
+              "propertyNames": {
+                "enum": [
+                  "identity",
+                  "goals",
+                  "context",
+                  "constraints",
+                  "skills",
+                  "style",
+                  "examples",
+                  "tools",
+                  "memory"
+                ]
+              }
+            },
+            "target": {
+              "type": "object",
+              "properties": {
+                "modelFamily": {
+                  "type": "string"
+                },
+                "surface": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "description",
+        "includes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

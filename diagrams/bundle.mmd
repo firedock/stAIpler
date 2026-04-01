@@ -1,0 +1,68 @@
+graph TB
+    subgraph BUNDLE["Compiled Bundle: customer-support v1.0.0"]
+        direction TB
+
+        HEADER["stackId: customer-support<br/>version: 1.0.0<br/>hash: sha256:a3f8c2...<br/>compiledAt: 2026-04-01T12:00:00Z"]
+
+        subgraph CONFIG["buildConfig (top-level)"]
+            BC["max_tokens: 8000<br/>merge.identity: last-wins (default)<br/>merge.style: last-wins (default)<br/>merge.skills: concatenate (default)<br/>target.modelFamily: anthropic"]
+        end
+
+        subgraph SECTIONS["Stapled Sections (canonical order)"]
+            direction TB
+            SEC1["## Core Identity<br/>kind: identity | priority: 10 | LAST-WINS<br/>---<br/>You are a professional support agent<br/>for Acme Corp..."]
+            SEC2["## Mission Goals<br/>kind: goals | priority: 50 | concatenate<br/>---<br/>Resolve tickets efficiently...<br/>Maintain customer satisfaction..."]
+            SEC3["## Support Context<br/>kind: context | priority: 50 | concatenate<br/>---<br/>Product: Acme SaaS Platform<br/>Support hours: 24/7<br/>Escalation: Tier 1 - Tier 2 - Eng"]
+            SEC4["## Safety Constraints<br/>kind: constraints | priority: 10 | concatenate<br/>---<br/>Never share internal credentials...<br/>Decline requests outside scope..."]
+            SEC5["## Ticket Triage + Routing<br/>kind: skills | priority: 50 | concatenate<br/>---<br/>1. Classify inbound request<br/>2. Check knowledge base<br/>3. Route or resolve..."]
+            SEC6["## Response Style<br/>kind: style | priority: 60 | LAST-WINS<br/>---<br/>Tone: concise-friendly<br/>Format: short paragraphs<br/>Sign off: Best, Acme Support"]
+            SEC7["## Session Memory<br/>kind: memory | runtimeInjectable: true<br/>---<br/>PLACEHOLDER - replace at runtime<br/>with user history, ticket context,<br/>and session state"]
+
+            SEC1 --- SEC2 --- SEC3 --- SEC4 --- SEC5 --- SEC6 --- SEC7
+        end
+
+        subgraph PROVENANCE["Provenance Trail"]
+            direction LR
+            RA["resolvedAssets:<br/>core.identity@1.0.0<br/>  source: core/identity<br/>  resolvedPath: /lib/core/identity.md<br/>  inherited: false<br/>core.safety@1.0.0<br/>  inherited: false<br/>support.context@1.0.0<br/>  source: ./context.md<br/>  inherited: false<br/>support.skills@1.0.0<br/>  inherited: false<br/>support.style@1.0.0<br/>  inherited: false"]
+            CO["compileOrder:<br/>1. core.identity<br/>2. core.safety<br/>3. support.context<br/>4. support.skills<br/>5. support.style<br/>6. support.memory"]
+            CR["contractResults:<br/>builtin:schema - PASS<br/>builtin:refs - PASS<br/>builtin:inheritance - PASS<br/>user:support-agent - PASS"]
+        end
+
+        subgraph META["metadata"]
+            direction LR
+            M1["assetCount: 6"]
+            M2["tokenEstimate: ~1,205"]
+            M3["warnings: []"]
+            M4["sources:<br/>/lib/core/identity.md<br/>/lib/core/safety.md<br/>/stacks/.../context.md<br/>/stacks/.../skills.md<br/>/lib/support/style.md"]
+        end
+
+        HEADER --- CONFIG
+        CONFIG --- SECTIONS
+        SECTIONS --- PROVENANCE
+        PROVENANCE --- META
+    end
+
+    subgraph OUTPUT["Output Formats"]
+        direction LR
+        JSON["--format json<br/>Full CompiledBundle<br/>with all provenance"]
+        TEXT["--format text<br/>Just fullText<br/>pipe to any LLM"]
+        MD["--format markdown<br/>Structured sections<br/>with ## headers"]
+    end
+
+    BUNDLE --> JSON & TEXT & MD
+
+    classDef header fill:#1a3a5c,stroke:#2e6da4,color:#fff
+    classDef config fill:#3a3a1a,stroke:#8c8c2a,color:#fff
+    classDef section fill:#2d5016,stroke:#4a8c2a,color:#fff
+    classDef memory fill:#5c4a1a,stroke:#a4862e,color:#fff
+    classDef prov fill:#3a1a5c,stroke:#6d2ea4,color:#fff
+    classDef meta fill:#333,stroke:#666,color:#ccc
+    classDef output fill:#1a3a3a,stroke:#2a8c8c,color:#fff
+
+    class HEADER header
+    class BC config
+    class SEC1,SEC2,SEC3,SEC4,SEC5,SEC6 section
+    class SEC7 memory
+    class RA,CO,CR prov
+    class M1,M2,M3,M4 meta
+    class JSON,TEXT,MD output

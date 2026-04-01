@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5"/>
+      <stop offset="50%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="10" y="10" width="180" height="180" rx="40" fill="#0f172a"/>
+  <!-- Staple shape -->
+  <path d="M60 55 L60 130 Q60 145 75 145 L125 145 Q140 145 140 130 L140 55"
+        fill="none" stroke="url(#g1)" stroke-width="12" stroke-linecap="round"/>
+  <!-- AI text inside -->
+  <text x="100" y="118" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="36" font-weight="800" fill="url(#g1)" text-anchor="middle" letter-spacing="2">AI</text>
+</svg>

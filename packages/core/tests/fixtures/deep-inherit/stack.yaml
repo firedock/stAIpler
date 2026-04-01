@@ -1,0 +1,5 @@
+name: deep-inherit
+version: 1.0.0
+description: Stack with 3-level inheritance (should be rejected)
+includes:
+  - asset: deep/child

@@ -1,0 +1,7 @@
+name: contract-fail
+version: 1.0.0
+description: Stack where contract fails due to missing constraints
+includes:
+  - asset: core/identity
+  - asset: support/skills
+  - asset: support/context

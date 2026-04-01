@@ -1,0 +1,6 @@
+name: memory-section
+version: 1.0.0
+description: Stack with memory layer
+includes:
+  - asset: core/identity
+  - asset: memory/defaults

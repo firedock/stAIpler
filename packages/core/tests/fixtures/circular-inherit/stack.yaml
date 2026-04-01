@@ -1,0 +1,5 @@
+name: circular-inherit
+version: 1.0.0
+description: Stack with circular inheritance
+includes:
+  - asset: circular/a

@@ -1,0 +1,14 @@
+name: customer-support
+version: 1.0.0
+description: Full customer support agent stack
+includes:
+  - asset: core/identity
+  - asset: core/reasoning
+  - asset: core/safety
+  - asset: support/context
+  - asset: support/skills
+  - asset: support/style
+build:
+  max_tokens: 8000
+  target:
+    modelFamily: anthropic

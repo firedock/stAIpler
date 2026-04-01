@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="g12bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e1b4b"/>
+      <stop offset="100%" style="stop-color:#0f172a"/>
+    </linearGradient>
+    <linearGradient id="g12" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#818cf8"/>
+      <stop offset="100%" style="stop-color:#c084fc"/>
+    </linearGradient>
+    <linearGradient id="g12shine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:white;stop-opacity:0.15"/>
+      <stop offset="50%" style="stop-color:white;stop-opacity:0"/>
+    </linearGradient>
+    <filter id="shadow12">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#7c3aed" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect x="10" y="10" width="180" height="180" rx="44" fill="url(#g12bg)" filter="url(#shadow12)"/>
+  <!-- Glass shine overlay -->
+  <rect x="10" y="10" width="180" height="90" rx="44" fill="url(#g12shine)"/>
+  <!-- Staple -->
+  <path d="M64 54 L64 124 Q64 142 80 142 L120 142 Q136 142 136 124 L136 54"
+        fill="none" stroke="url(#g12)" stroke-width="10" stroke-linecap="round"/>
+  <!-- AI text with subtle shadow -->
+  <text x="100" y="116" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="32" font-weight="800" fill="url(#g12)" text-anchor="middle" letter-spacing="3">AI</text>
+</svg>

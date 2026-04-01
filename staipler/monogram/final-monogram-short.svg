@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 68 72" width="68" height="72">
+  <defs>
+    <linearGradient id="mg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5"/>
+      <stop offset="50%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+  </defs>
+  <!-- Staple - shorter and tighter -->
+  <path d="M8 14 L8 52 Q8 68 22 68 L46 68 Q60 68 60 52 L60 14"
+        fill="none" stroke="url(#mg)" stroke-width="6" stroke-linecap="round" opacity="0.35"/>
+  <!-- AI -->
+  <text x="34" y="56" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="40" font-weight="800" fill="url(#mg)" text-anchor="middle" letter-spacing="1">AI</text>
+</svg>

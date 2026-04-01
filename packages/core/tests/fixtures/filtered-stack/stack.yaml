@@ -1,0 +1,10 @@
+name: filtered-stack
+version: 1.0.0
+description: Stack testing target filtering
+includes:
+  - asset: core/identity
+  - asset: support/skills
+  - asset: fallback/constraints
+build:
+  target:
+    modelFamily: anthropic

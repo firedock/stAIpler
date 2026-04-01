@@ -1,0 +1,6 @@
+name: basic-stack
+version: 1.0.0
+description: Basic stack for testing
+includes:
+  - asset: core/identity
+  - asset: ./context.md

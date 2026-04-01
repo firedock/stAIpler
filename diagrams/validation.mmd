@@ -1,0 +1,45 @@
+graph TB
+    ASSET[Parsed Asset] --> L1
+
+    subgraph "Layer 1: Built-in Schema Validation (always runs)"
+        L1{Zod Schema<br/>Validation}
+        L1 -->|pass| L1OK["PASS<br/>Valid frontmatter<br/>Valid types<br/>No cycles<br/>Refs exist"]
+        L1 -->|fail| L1ERR["ERROR - blocks compile<br/>Missing required fields<br/>Invalid kind/version<br/>Circular inheritance<br/>Broken references"]
+    end
+
+    L1OK --> L2
+
+    subgraph "Layer 2: User Contracts (optional, per-project)"
+        L2{"Match assets by<br/>tags / kinds?"}
+        L2 -->|no match| SKIP["Skip<br/>No contract applies<br/>to this asset set"]
+        L2 -->|match| CHECK{"Check set-level<br/>requirements"}
+        CHECK -->|pass| L2OK["PASS<br/>must_have_kinds satisfied<br/>all_must_declare satisfied"]
+        CHECK -->|fail| L2WARN["WARNING in build<br/>ERROR in validate<br/>Missing required kinds<br/>Missing declarations"]
+    end
+
+    SKIP & L2OK & L2WARN --> RESULT
+
+    subgraph "Contract Results"
+        RESULT["ContractResult[]"]
+        RB["builtin:schema - PASS/FAIL"]
+        RU["user:support-agent - PASS/FAIL"]
+        RESULT --> RB & RU
+    end
+
+    subgraph "Key Distinction"
+        K1["Layer 1: validates INDIVIDUAL assets<br/>schema conformance, types, refs"]
+        K2["Layer 2: validates ASSET SETS<br/>project-level structural requirements"]
+        K3["Phase 3: validates CONTENT + BEHAVIOR<br/>eval assertions, quality checks"]
+    end
+
+    classDef pass fill:#2d5016,stroke:#4a8c2a,color:#fff
+    classDef fail fill:#5c1a1a,stroke:#a42e2e,color:#fff
+    classDef warn fill:#5c4a1a,stroke:#a4862e,color:#fff
+    classDef neutral fill:#1a3a5c,stroke:#2e6da4,color:#fff
+    classDef info fill:#333,stroke:#666,color:#ccc
+
+    class L1OK,L2OK pass
+    class L1ERR fail
+    class L2WARN warn
+    class SKIP,RESULT,RB,RU neutral
+    class K1,K2,K3 info

@@ -1,0 +1,11 @@
+name: merge-override
+version: 1.0.0
+description: Stack that overrides skills merge to last-wins
+includes:
+  - asset: support/identity
+  - asset: support/constraints
+  - asset: support/skills-base
+  - asset: support/skills-advanced
+build:
+  merge:
+    skills: last-wins

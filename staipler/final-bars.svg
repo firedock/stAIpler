@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 222 68" width="222" height="68">
+  <defs>
+    <linearGradient id="f2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5"/>
+      <stop offset="50%" style="stop-color:#7c3aed"/>
+      <stop offset="100%" style="stop-color:#a855f7"/>
+    </linearGradient>
+  </defs>
+  <text x="0" y="50" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="50" font-weight="700" fill="#e2e8f0" letter-spacing="-1">st</text>
+  <!-- Staple -->
+  <path d="M50 2 L50 48 Q50 58 60 58 L96 58 Q106 58 106 48 L106 2"
+        fill="none" stroke="url(#f2)" stroke-width="4" stroke-linecap="round" opacity="0.35"/>
+  <!-- Tiny bars on top -->
+  <rect x="62" y="6" width="32" height="1.5" rx="0.75" fill="#818cf8" opacity="0.45"/>
+  <rect x="62" y="10" width="32" height="1.5" rx="0.75" fill="#a78bfa" opacity="0.45"/>
+  <rect x="62" y="14" width="32" height="1.5" rx="0.75" fill="#c084fc" opacity="0.45"/>
+  <!-- AI 38px below bars -->
+  <text x="78" y="48" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="38" font-weight="800" fill="url(#f2)" text-anchor="middle" letter-spacing="1">AI</text>
+  <text x="108" y="50" font-family="Inter, Helvetica Neue, Arial, sans-serif" font-size="50" font-weight="700" fill="#e2e8f0" letter-spacing="-1">pler</text>
+</svg>

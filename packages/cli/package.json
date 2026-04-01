@@ -1,0 +1,16 @@
+{
+  "name": "@staipler/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "staipler": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts"
+  },
+  "dependencies": {
+    "@staipler/core": "workspace:*",
+    "chalk": "^5.4.0",
+    "commander": "^13.1.0"
+  }
+}

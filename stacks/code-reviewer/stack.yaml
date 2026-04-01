@@ -1,0 +1,11 @@
+name: code-reviewer
+version: 1.0.0
+description: Code review assistant stack
+includes:
+  - asset: core/identity
+  - asset: core/reasoning
+  - asset: core/safety
+  - asset: ./skills.md
+build:
+  merge:
+    skills: last-wins

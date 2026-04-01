@@ -1,0 +1,5 @@
+name: missing-ref
+version: 1.0.0
+description: Stack referencing a nonexistent asset
+includes:
+  - asset: core/nonexistent
