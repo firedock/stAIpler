@@ -80,7 +80,7 @@ create table if not exists data_sources (
   project_id uuid references projects(id) on delete cascade not null,
   name text not null,
   provider text not null check (provider in (
-    'google-docs', 'notion', 'confluence', 'github', 'gitlab',
+    'notedrawer', 'google-docs', 'notion', 'confluence', 'github', 'gitlab',
     'slack', 'linear', 'jira', 'airtable', 'hubspot',
     'salesforce', 'zendesk', 'intercom', 'file-upload', 'url'
   )),
