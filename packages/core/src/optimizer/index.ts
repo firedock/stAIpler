@@ -1,0 +1,11 @@
+export { scan } from './scanner.js';
+export type { ScannedFile, ScanResult } from './scanner.js';
+export { analyze } from './analyzer.js';
+export type { AnalysisResult, LayerAnalysis } from './analyzer.js';
+export { createPlan, optimize } from './agent.js';
+export type { OptimizationPlan, LayerPlan, OptimizedAsset, OptimizationResult } from './agent.js';
+export { loadKpiHistory, saveKpiSnapshot, getLatestSnapshot, getScoreTrend } from './kpi.js';
+export type { KpiSnapshot, KpiHistory } from './kpi.js';
+export { generateDemoReport } from './demo-report.js';
+export { FILE_TYPES, CATEGORY_INFO, CLASS_INFO, getFileTypeInfo, getFileTypesByCategory, getFileTypesByClass } from './file-types.js';
+export type { FileTypeInfo, FileCategory, FileClass } from './file-types.js';

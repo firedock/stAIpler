@@ -1,6 +1,7 @@
 // === LAYER TYPES ===
 export type StaticLayerType = 'identity' | 'goals' | 'context' | 'constraints' |
-                              'skills' | 'style' | 'examples' | 'tools';
+                              'skills' | 'style' | 'examples' | 'tools' |
+                              'policies' | 'evals' | 'prompts';
 export type RuntimeLayerType = 'memory';
 export type LayerType = StaticLayerType | RuntimeLayerType;
 

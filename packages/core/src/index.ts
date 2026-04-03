@@ -44,6 +44,57 @@ export type {
   RuntimeLayerType,
 } from './types.js';
 
+// Eval
+export {
+  CUSTOMER_SUPPORT_SCENARIOS,
+  runEval,
+  generateReport,
+  SCORING_DIMENSIONS,
+} from './eval/index.js';
+export type {
+  EvalScenario,
+  EvalConfig,
+  EvalRunResult,
+  ScenarioRunResult,
+  AggregateResult,
+  JudgeResult,
+  ScoreResult,
+} from './eval/index.js';
+
+// Optimizer
+export {
+  scan,
+  analyze,
+  createPlan,
+  optimize,
+  loadKpiHistory,
+  saveKpiSnapshot,
+  getLatestSnapshot,
+  getScoreTrend,
+  generateDemoReport,
+  FILE_TYPES,
+  CATEGORY_INFO,
+  CLASS_INFO,
+  getFileTypeInfo,
+  getFileTypesByCategory,
+  getFileTypesByClass,
+} from './optimizer/index.js';
+export type {
+  ScannedFile,
+  ScanResult,
+  AnalysisResult,
+  LayerAnalysis,
+  OptimizationPlan,
+  LayerPlan,
+  OptimizedAsset,
+  OptimizationResult,
+  KpiSnapshot,
+  KpiHistory,
+  FileTypeInfo,
+  FileCategory,
+  FileClass,
+} from './optimizer/index.js';
+
 // Errors
 export {
   StaiplerError,

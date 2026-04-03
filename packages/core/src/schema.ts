@@ -6,6 +6,7 @@ import type { LayerType, MergeStrategy } from './types.js';
 export const STATIC_LAYER_TYPES = [
   'identity', 'goals', 'context', 'constraints',
   'skills', 'style', 'examples', 'tools',
+  'policies', 'evals', 'prompts',
 ] as const;
 
 export const RUNTIME_LAYER_TYPES = ['memory'] as const;
@@ -26,13 +27,18 @@ export const DEFAULT_MERGE_STRATEGIES: Record<LayerType, MergeStrategy> = {
   style: 'last-wins',
   examples: 'concatenate',
   tools: 'concatenate',
+  policies: 'concatenate',
+  evals: 'concatenate',
+  prompts: 'concatenate',
   memory: 'concatenate',
 };
 
 // === Canonical section order ===
+// IDENTITY → GOALS → CONTEXT → POLICIES → CONSTRAINTS → SKILLS →
+// STYLE → EXAMPLES → TOOLS → PROMPTS → EVALS → MEMORY
 export const CANONICAL_SECTION_ORDER: LayerType[] = [
-  'identity', 'goals', 'context', 'constraints',
-  'skills', 'style', 'examples', 'tools', 'memory',
+  'identity', 'goals', 'context', 'policies', 'constraints',
+  'skills', 'style', 'examples', 'tools', 'prompts', 'evals', 'memory',
 ];
 
 // === Zod Schemas ===
@@ -41,7 +47,8 @@ const semverRegex = /^\d+\.\d+\.\d+(?:-[\w.]+)?(?:\+[\w.]+)?$/;
 
 const LayerTypeSchema = z.enum([
   'identity', 'goals', 'context', 'constraints',
-  'skills', 'style', 'examples', 'tools', 'memory',
+  'skills', 'style', 'examples', 'tools',
+  'policies', 'evals', 'prompts', 'memory',
 ]);
 
 const MergeStrategySchema = z.enum(['concatenate', 'last-wins']);

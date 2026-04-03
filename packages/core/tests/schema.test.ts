@@ -243,7 +243,8 @@ describe('Constants', () => {
   it('LAYER_TYPES includes all static and runtime types', () => {
     expect(LAYER_TYPES).toEqual([
       'identity', 'goals', 'context', 'constraints',
-      'skills', 'style', 'examples', 'tools', 'memory',
+      'skills', 'style', 'examples', 'tools',
+      'policies', 'evals', 'prompts', 'memory',
     ]);
   });
 
@@ -260,6 +261,9 @@ describe('Constants', () => {
     expect(DEFAULT_MERGE_STRATEGIES.style).toBe('last-wins');
     expect(DEFAULT_MERGE_STRATEGIES.examples).toBe('concatenate');
     expect(DEFAULT_MERGE_STRATEGIES.tools).toBe('concatenate');
+    expect(DEFAULT_MERGE_STRATEGIES.policies).toBe('concatenate');
+    expect(DEFAULT_MERGE_STRATEGIES.evals).toBe('concatenate');
+    expect(DEFAULT_MERGE_STRATEGIES.prompts).toBe('concatenate');
     expect(DEFAULT_MERGE_STRATEGIES.memory).toBe('concatenate');
   });
 });
