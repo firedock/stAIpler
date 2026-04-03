@@ -4,6 +4,7 @@ import { buildCommand } from './commands/build.js';
 import { validateCommand } from './commands/validate.js';
 import { evalCommand } from './commands/eval.js';
 import { optimizeCommand } from './commands/optimize.js';
+import { dashboardCommand } from './commands/dashboard.js';
 
 const program = new Command()
   .name('staipler')
@@ -14,5 +15,6 @@ program.addCommand(buildCommand);
 program.addCommand(validateCommand);
 program.addCommand(evalCommand);
 program.addCommand(optimizeCommand);
+program.addCommand(dashboardCommand);
 
 program.parse();

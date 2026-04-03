@@ -7,5 +7,7 @@ export type { OptimizationPlan, LayerPlan, OptimizedAsset, OptimizationResult } 
 export { loadKpiHistory, saveKpiSnapshot, getLatestSnapshot, getScoreTrend } from './kpi.js';
 export type { KpiSnapshot, KpiHistory } from './kpi.js';
 export { generateDemoReport } from './demo-report.js';
+export { generateDashboard } from './dashboard.js';
+export type { DashboardData } from './dashboard.js';
 export { FILE_TYPES, CATEGORY_INFO, CLASS_INFO, getFileTypeInfo, getFileTypesByCategory, getFileTypesByClass } from './file-types.js';
 export type { FileTypeInfo, FileCategory, FileClass } from './file-types.js';
