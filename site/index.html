@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>stAIpler — Context Optimization for AI Agents</title>
+<meta name="description" content="Your AI agent is flying blind. stAIpler scans your project, finds missing instruction layers, and optimizes your agent's context with AI.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { background: #06060e; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; line-height: 1.6; overflow-x: hidden; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ---- NAV ---- */
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; background: rgba(6,6,14,0.8); backdrop-filter: blur(16px); border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .nav-logo svg { height: 28px; width: auto; }
+  .nav-links { display: flex; gap: 32px; align-items: center; }
+  .nav-links a { font-size: 0.85rem; color: #94a3b8; transition: color 0.2s; }
+  .nav-links a:hover { color: #e2e8f0; }
+  .nav-cta { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff !important; padding: 8px 20px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; transition: opacity 0.2s; }
+  .nav-cta:hover { opacity: 0.9; }
+
+  /* ---- HERO ---- */
+  .hero { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 120px 24px 80px; position: relative; }
+  .hero::after { content: ''; position: absolute; top: 20%; left: 50%; transform: translateX(-50%); width: 600px; height: 600px; background: radial-gradient(circle, rgba(124,58,237,0.08) 0%, transparent 70%); pointer-events: none; }
+  .hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; border-radius: 20px; background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.15); font-size: 0.8rem; color: #a78bfa; margin-bottom: 24px; }
+  .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+  .hero h1 { font-size: clamp(2.5rem, 6vw, 4.2rem); font-weight: 800; line-height: 1.1; margin-bottom: 20px; letter-spacing: -0.03em; max-width: 800px; }
+  .hero h1 .gradient { background: linear-gradient(135deg, #a78bfa, #7c3aed, #4f46e5); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .hero p { font-size: 1.15rem; color: #94a3b8; max-width: 600px; margin-bottom: 40px; font-weight: 300; }
+  .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .btn-primary { background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; padding: 14px 32px; border-radius: 10px; font-weight: 600; font-size: 1rem; border: none; cursor: pointer; transition: all 0.2s; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 30px rgba(124,58,237,0.3); }
+  .btn-secondary { background: rgba(255,255,255,0.04); color: #e2e8f0; padding: 14px 32px; border-radius: 10px; font-weight: 500; font-size: 1rem; border: 1px solid rgba(255,255,255,0.08); cursor: pointer; transition: all 0.2s; }
+  .btn-secondary:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+  .hero-terminal { margin-top: 60px; background: #0d0d1a; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 24px 32px; text-align: left; max-width: 600px; width: 100%; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.85rem; line-height: 2; position: relative; z-index: 1; }
+  .hero-terminal .prompt { color: #64748b; }
+  .hero-terminal .cmd { color: #a78bfa; }
+  .hero-terminal .output { color: #475569; }
+  .hero-terminal .score { color: #10b981; font-weight: 600; }
+  .hero-terminal .score-bad { color: #ef4444; font-weight: 600; }
+
+  /* ---- SECTIONS ---- */
+  section { padding: 100px 24px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .section-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; color: #7c3aed; font-weight: 600; margin-bottom: 12px; }
+  .section-title { font-size: clamp(1.8rem, 4vw, 2.4rem); font-weight: 700; margin-bottom: 16px; letter-spacing: -0.02em; }
+  .section-desc { font-size: 1.05rem; color: #64748b; max-width: 600px; margin-bottom: 48px; }
+
+  /* ---- PROBLEM ---- */
+  .problem-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+  .problem-card { background: #0d0d1a; border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; padding: 28px; }
+  .problem-card .p-icon { font-size: 1.5rem; margin-bottom: 12px; }
+  .problem-card h4 { font-size: 1rem; margin-bottom: 8px; }
+  .problem-card p { font-size: 0.88rem; color: #64748b; line-height: 1.6; }
+
+  /* ---- HOW IT WORKS ---- */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; background: rgba(255,255,255,0.04); border-radius: 12px; overflow: hidden; }
+  .step { background: #0d0d1a; padding: 32px 24px; text-align: center; }
+  .step-num { width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; margin-bottom: 16px; }
+  .step-1 .step-num { background: rgba(107,114,128,0.2); color: #9ca3af; }
+  .step-2 .step-num { background: rgba(245,158,11,0.2); color: #f59e0b; }
+  .step-3 .step-num { background: rgba(167,139,250,0.2); color: #a78bfa; }
+  .step-4 .step-num { background: rgba(16,185,129,0.2); color: #10b981; }
+  .step h4 { font-size: 0.95rem; margin-bottom: 8px; }
+  .step p { font-size: 0.82rem; color: #64748b; }
+
+  /* ---- TAXONOMY ---- */
+  .taxonomy-classes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .tax-class { background: #0d0d1a; border-radius: 12px; padding: 28px; border: 1px solid rgba(255,255,255,0.04); }
+  .tax-class h4 { font-size: 1rem; margin-bottom: 6px; }
+  .tax-class .tax-desc { font-size: 0.82rem; color: #64748b; margin-bottom: 16px; }
+  .tax-files { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tax-file { font-size: 0.72rem; padding: 3px 10px; border-radius: 6px; font-family: 'SF Mono', 'Fira Code', monospace; }
+  .tax-native { background: rgba(167,139,250,0.12); color: #a78bfa; border: 1px solid rgba(167,139,250,0.15); }
+  .tax-imported { background: rgba(59,130,246,0.12); color: #3b82f6; border: 1px solid rgba(59,130,246,0.15); }
+  .tax-supporting { background: rgba(100,116,139,0.12); color: #94a3b8; border: 1px solid rgba(100,116,139,0.15); }
+
+  /* ---- JOURNEY ---- */
+  .journey { display: flex; align-items: center; justify-content: center; gap: 40px; padding: 48px; background: #0d0d1a; border-radius: 16px; border: 1px solid rgba(255,255,255,0.04); }
+  .j-state { text-align: center; flex: 1; }
+  .j-score { font-size: 3.5rem; font-weight: 800; line-height: 1; }
+  .j-label { font-size: 0.85rem; color: #64748b; margin-top: 8px; }
+  .j-grade { font-size: 1.2rem; font-weight: 700; margin-top: 4px; }
+  .j-arrow { font-size: 2rem; color: #475569; flex-shrink: 0; }
+  .j-detail { font-size: 0.8rem; color: #475569; margin-top: 12px; }
+
+  /* ---- ECOSYSTEMS ---- */
+  .eco-grid { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .eco-badge { padding: 10px 20px; border-radius: 10px; background: #0d0d1a; border: 1px solid rgba(255,255,255,0.06); font-size: 0.85rem; color: #94a3b8; font-weight: 500; transition: all 0.2s; }
+  .eco-badge:hover { border-color: rgba(167,139,250,0.3); color: #e2e8f0; }
+
+  /* ---- CTA ---- */
+  .cta-section { text-align: center; padding: 100px 24px 120px; }
+  .cta-section h2 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 700; margin-bottom: 16px; }
+  .cta-section p { font-size: 1.05rem; color: #64748b; margin-bottom: 36px; max-width: 500px; margin-left: auto; margin-right: auto; }
+  .cta-install { background: #0d0d1a; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px 32px; display: inline-flex; align-items: center; gap: 12px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.9rem; color: #a78bfa; margin-bottom: 20px; cursor: pointer; transition: all 0.2s; }
+  .cta-install:hover { border-color: rgba(167,139,250,0.3); }
+  .cta-install .dollar { color: #475569; }
+
+  /* ---- FOOTER ---- */
+  footer { padding: 40px 24px; border-top: 1px solid rgba(255,255,255,0.04); text-align: center; }
+  footer p { font-size: 0.8rem; color: #334155; }
+  footer a { color: #475569; }
+  footer a:hover { color: #94a3b8; }
+
+  /* ---- RESPONSIVE ---- */
+  @media (max-width: 900px) {
+    .steps { grid-template-columns: repeat(2, 1fr); }
+    .taxonomy-classes { grid-template-columns: 1fr; }
+    .journey { flex-direction: column; gap: 24px; }
+    .j-arrow { transform: rotate(90deg); }
+  }
+  @media (max-width: 600px) {
+    .steps { grid-template-columns: 1fr; }
+    .nav-links a:not(.nav-cta) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="nav-logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 222 68" height="28">
+      <defs><linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#4f46e5"/><stop offset="50%" style="stop-color:#7c3aed"/><stop offset="100%" style="stop-color:#a855f7"/></linearGradient></defs>
+      <text x="0" y="50" font-family="Inter,system-ui,sans-serif" font-size="50" font-weight="700" fill="#e2e8f0" letter-spacing="-1">st</text>
+      <path d="M52 12 L52 48 Q52 58 62 58 L94 58 Q104 58 104 48 L104 12" fill="none" stroke="url(#lg)" stroke-width="4" stroke-linecap="round" opacity="0.35"/>
+      <text x="78" y="48" font-family="Inter,system-ui,sans-serif" font-size="38" font-weight="800" fill="url(#lg)" text-anchor="middle" letter-spacing="1">AI</text>
+      <text x="108" y="50" font-family="Inter,system-ui,sans-serif" font-size="50" font-weight="700" fill="#e2e8f0" letter-spacing="-1">pler</text>
+    </svg>
+  </a>
+  <div class="nav-links">
+    <a href="#how-it-works">How It Works</a>
+    <a href="#taxonomy">Taxonomy</a>
+    <a href="#ecosystems">Ecosystems</a>
+    <a href="https://github.com/nicktfranklin/stAIpler" class="nav-cta">Get Started</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge"><span class="dot"></span> Open Source</div>
+  <h1>Your AI agent is <span class="gradient">flying blind</span></h1>
+  <p>stAIpler scans your project, finds missing instruction layers, and optimizes your agent's context. Same model, dramatically better results.</p>
+  <div class="hero-actions">
+    <a href="#get-started" class="btn-primary">Get Started</a>
+    <a href="#how-it-works" class="btn-secondary">See How It Works</a>
+  </div>
+  <div class="hero-terminal">
+    <div><span class="prompt">$</span> <span class="cmd">staipler optimize --scan-only</span></div>
+    <div><span class="output">Scanning for instruction files...</span></div>
+    <div><span class="output">Found 22 instruction files</span></div>
+    <div><span class="output">Readiness:</span> <span class="score-bad">51/100 (F)</span> <span class="output">— 5 layers missing</span></div>
+    <div>&nbsp;</div>
+    <div><span class="prompt">$</span> <span class="cmd">staipler optimize</span></div>
+    <div><span class="output">Generating skills layer... done</span></div>
+    <div><span class="output">Generating policies layer... done</span></div>
+    <div><span class="output">Readiness:</span> <span class="score">95/100 (A)</span> <span class="output">— +44 improvement</span></div>
+  </div>
+</div>
+
+<!-- PROBLEM -->
+<section>
+  <div class="container">
+    <div class="section-label">The Problem</div>
+    <h2 class="section-title">Scattered context, generic output</h2>
+    <p class="section-desc">Every AI tool has its own instruction file. None of them talk to each other. Your agent gets fragments instead of a complete picture.</p>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="p-icon">&#128566;</div>
+        <h4>No identity</h4>
+        <p>Without an identity layer, your agent doesn't know what role it plays. It gives generic responses instead of acting as your domain expert.</p>
+      </div>
+      <div class="problem-card">
+        <div class="p-icon">&#9888;&#65039;</div>
+        <h4>No guardrails</h4>
+        <p>Without constraints and policies, the agent has no safety boundaries. It may introduce dependencies, leak PII, or ignore your coding standards.</p>
+      </div>
+      <div class="problem-card">
+        <div class="p-icon">&#128300;</div>
+        <h4>No measurement</h4>
+        <p>You have no way to know if your instruction files are working. Are they complete? Are they effective? Is the agent actually following them?</p>
+      </div>
+      <div class="problem-card">
+        <div class="p-icon">&#129513;</div>
+        <h4>Fragmented ecosystem</h4>
+        <p>CLAUDE.md, AGENTS.md, .cursorrules, copilot-instructions.md, SKILL.md — every tool expects a different file. You maintain duplicates or have gaps.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works" style="background: rgba(255,255,255,0.01);">
+  <div class="container">
+    <div class="section-label">How It Works</div>
+    <h2 class="section-title">Four steps to an empowered agent</h2>
+    <p class="section-desc">stAIpler takes your agent from blank slate to subject expert.</p>
+    <div class="steps">
+      <div class="step step-1">
+        <div class="step-num">1</div>
+        <h4>Scan</h4>
+        <p>Discovers all instruction files across 30+ formats. CLAUDE.md, AGENTS.md, .cursorrules, SKILL.md, copilot-instructions — all detected automatically.</p>
+      </div>
+      <div class="step step-2">
+        <div class="step-num">2</div>
+        <h4>Analyze</h4>
+        <p>Maps files to instruction layers and scores coverage. Identifies missing identity, constraints, skills, and policies. Gives you a readiness grade.</p>
+      </div>
+      <div class="step step-3">
+        <div class="step-num">3</div>
+        <h4>Optimize</h4>
+        <p>AI generates missing layers using your existing project context. Doesn't replace what you have — fills the gaps with project-specific content.</p>
+      </div>
+      <div class="step step-4">
+        <div class="step-num">4</div>
+        <h4>Measure</h4>
+        <p>A/B tests your optimized stack against a control. Same model, same task — stAIpler quantifies the improvement with blind LLM-as-judge scoring.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- JOURNEY -->
+<section>
+  <div class="container">
+    <div class="section-label">The Transformation</div>
+    <h2 class="section-title">Real results from a real project</h2>
+    <p class="section-desc">NoteDrawer-Mobile, a React Native app, scanned and optimized in under 2 minutes.</p>
+    <div class="journey">
+      <div class="j-state">
+        <div class="j-score" style="color:#ef4444;">51</div>
+        <div class="j-label">Before</div>
+        <div class="j-grade" style="color:#ef4444;">F</div>
+        <div class="j-detail">5 missing layers<br>Agent flying blind</div>
+      </div>
+      <div class="j-arrow">&#10230;</div>
+      <div class="j-state">
+        <div class="j-score" style="color:#a78bfa;">80</div>
+        <div class="j-label">After Scan + Optimize</div>
+        <div class="j-grade" style="color:#3b82f6;">B</div>
+        <div class="j-detail">9 layers covered<br>Skills + policies generated</div>
+      </div>
+      <div class="j-arrow">&#10230;</div>
+      <div class="j-state">
+        <div class="j-score" style="color:#10b981;">95</div>
+        <div class="j-label">Compiled Stack</div>
+        <div class="j-grade" style="color:#10b981;">A</div>
+        <div class="j-detail">+66% eval improvement<br>Agent is a subject expert</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TAXONOMY -->
+<section id="taxonomy" style="background: rgba(255,255,255,0.01);">
+  <div class="container">
+    <div class="section-label">The Standard</div>
+    <h2 class="section-title">One taxonomy for every AI tool</h2>
+    <p class="section-desc">stAIpler defines three classes of instruction files. Native assets it compiles, imported files it normalizes, and project docs it can reference.</p>
+    <div class="taxonomy-classes">
+      <div class="tax-class" style="border-color: rgba(167,139,250,0.15);">
+        <h4 style="color:#a78bfa;">Class 1: Native Assets</h4>
+        <div class="tax-desc">The core stAIpler vocabulary. Compiled directly into optimized instruction bundles.</div>
+        <div class="tax-files">
+          <span class="tax-file tax-native">IDENTITY.md</span>
+          <span class="tax-file tax-native">GOALS.md</span>
+          <span class="tax-file tax-native">CONTEXT.md</span>
+          <span class="tax-file tax-native">CONSTRAINTS.md</span>
+          <span class="tax-file tax-native">SKILLS.md</span>
+          <span class="tax-file tax-native">STYLE.md</span>
+          <span class="tax-file tax-native">EXAMPLES.md</span>
+          <span class="tax-file tax-native">TOOLS.md</span>
+          <span class="tax-file tax-native">MEMORY.md</span>
+          <span class="tax-file tax-native">POLICIES.md</span>
+          <span class="tax-file tax-native">EVALS.md</span>
+        </div>
+      </div>
+      <div class="tax-class" style="border-color: rgba(59,130,246,0.15);">
+        <h4 style="color:#3b82f6;">Class 2: Imported Adapters</h4>
+        <div class="tax-desc">External ecosystem files normalized into native assets. Your existing files just work.</div>
+        <div class="tax-files">
+          <span class="tax-file tax-imported">AGENTS.md</span>
+          <span class="tax-file tax-imported">CLAUDE.md</span>
+          <span class="tax-file tax-imported">GEMINI.md</span>
+          <span class="tax-file tax-imported">SKILL.md</span>
+          <span class="tax-file tax-imported">copilot-instructions.md</span>
+          <span class="tax-file tax-imported">.cursorrules</span>
+          <span class="tax-file tax-imported">.windsurfrules</span>
+          <span class="tax-file tax-imported">CONVENTIONS.md</span>
+        </div>
+      </div>
+      <div class="tax-class" style="border-color: rgba(100,116,139,0.15);">
+        <h4 style="color:#94a3b8;">Class 3: Supporting Docs</h4>
+        <div class="tax-desc">Project docs agents benefit from. Optionally compiled into context bundles.</div>
+        <div class="tax-files">
+          <span class="tax-file tax-supporting">README.md</span>
+          <span class="tax-file tax-supporting">ARCHITECTURE.md</span>
+          <span class="tax-file tax-supporting">PLAN.md</span>
+          <span class="tax-file tax-supporting">API.md</span>
+          <span class="tax-file tax-supporting">SECURITY.md</span>
+          <span class="tax-file tax-supporting">TESTING.md</span>
+          <span class="tax-file tax-supporting">CHANGELOG.md</span>
+          <span class="tax-file tax-supporting">llms.txt</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ECOSYSTEMS -->
+<section id="ecosystems">
+  <div class="container" style="text-align:center;">
+    <div class="section-label">Ecosystem Support</div>
+    <h2 class="section-title">Works with every AI coding tool</h2>
+    <p class="section-desc" style="margin-left:auto;margin-right:auto;">stAIpler doesn't replace your tools. It makes them all better by ensuring your instruction context is complete, consistent, and optimized.</p>
+    <div class="eco-grid">
+      <div class="eco-badge">Claude Code</div>
+      <div class="eco-badge">OpenAI Codex</div>
+      <div class="eco-badge">GitHub Copilot</div>
+      <div class="eco-badge">Gemini CLI</div>
+      <div class="eco-badge">Cursor</div>
+      <div class="eco-badge">Windsurf</div>
+      <div class="eco-badge">Cline</div>
+      <div class="eco-badge">Aider</div>
+      <div class="eco-badge">skills.sh</div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="get-started">
+  <h2>Start optimizing in 30 seconds</h2>
+  <p>stAIpler is open source. Install it, scan your project, and see what your agent is missing.</p>
+  <div class="cta-install" onclick="navigator.clipboard.writeText('npx staipler optimize --scan-only')">
+    <span class="dollar">$</span> npx staipler optimize --scan-only
+  </div>
+  <br><br>
+  <a href="https://github.com/nicktfranklin/stAIpler" class="btn-primary" style="display:inline-block;">View on GitHub</a>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>Built by <a href="https://firedock.com">Firedock</a> &middot; <a href="https://github.com/nicktfranklin/stAIpler">GitHub</a> &middot; Open Source</p>
+</footer>
+
+</body>
+</html>

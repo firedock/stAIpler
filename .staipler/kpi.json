@@ -120,6 +120,26 @@
         "memory": 80
       },
       "action": "scan"
+    },
+    {
+      "timestamp": "2026-04-03T01:52:32.194Z",
+      "readinessScore": 63,
+      "grade": "D",
+      "layerScores": {
+        "identity": 99,
+        "goals": 0,
+        "context": 99,
+        "constraints": 98,
+        "skills": 100,
+        "style": 90,
+        "examples": 0,
+        "tools": 79,
+        "policies": 0,
+        "evals": 0,
+        "prompts": 0,
+        "memory": 80
+      },
+      "action": "scan"
     }
   ]
 }
