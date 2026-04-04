@@ -31,12 +31,16 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
     ? snapshots[snapshots.length - 1].layer_scores as Record<string, number>
     : {};
 
-  const layers = LAYER_TYPES.map(kind => ({
-    kind,
-    score: layerScores[kind] ?? 0,
-    status: (layerScores[kind] ?? 0) > 40 ? 'present' : (layerScores[kind] ?? 0) > 0 ? 'weak' : 'missing',
-    fileCount: files.filter((f: any) => f.inferred_kind === kind).length,
-  }));
+  const layers = LAYER_TYPES.map(kind => {
+    const kindFiles = files.filter((f: any) => f.inferred_kind === kind);
+    return {
+      kind,
+      score: layerScores[kind] ?? 0,
+      status: (layerScores[kind] ?? 0) > 40 ? 'present' : (layerScores[kind] ?? 0) > 0 ? 'weak' : 'missing',
+      fileCount: kindFiles.length,
+      files: kindFiles,
+    };
+  });
 
   const present = layers.filter(l => l.status === 'present').length;
   const missing = layers.filter(l => l.status === 'missing').length;
@@ -107,6 +111,47 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
         </div>
         <LayerGrid layers={layers} />
       </section>
+
+      {/* Scan Report */}
+      {files.length > 0 && (
+        <section className="mb-12">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-lg font-semibold">Scan Report</h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {files.length} files discovered &middot; {Math.round(files.reduce((s: number, f: any) => s + (f.content_length ?? 0), 0) / 1000)}K chars of context
+              </p>
+            </div>
+            {snapshots.length > 0 && (
+              <span className="text-[10px] text-slate-700">
+                Last scan: {new Date(snapshots[snapshots.length - 1].created_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+          <div className="bg-[#0d0d1a] border border-white/[0.04] rounded-xl overflow-hidden">
+            <div className="grid grid-cols-[1fr_100px_80px_80px] gap-px bg-white/[0.02] text-[10px] text-slate-600 uppercase tracking-wide font-semibold">
+              <div className="bg-[#0d0d1a] px-4 py-2">File</div>
+              <div className="bg-[#0d0d1a] px-4 py-2">Layer</div>
+              <div className="bg-[#0d0d1a] px-4 py-2">Source</div>
+              <div className="bg-[#0d0d1a] px-4 py-2 text-right">Size</div>
+            </div>
+            {files.map((f: any, i: number) => (
+              <div key={i} className="grid grid-cols-[1fr_100px_80px_80px] gap-px bg-white/[0.02] text-sm hover:bg-white/[0.01] transition">
+                <div className="bg-[#0d0d1a] px-4 py-2.5 font-mono text-xs text-slate-300 truncate">{f.relative_path}</div>
+                <div className="bg-[#0d0d1a] px-4 py-2.5">
+                  {f.inferred_kind ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 capitalize">{f.inferred_kind}</span>
+                  ) : (
+                    <span className="text-[10px] text-slate-700">—</span>
+                  )}
+                </div>
+                <div className="bg-[#0d0d1a] px-4 py-2.5 text-[10px] text-slate-600">{f.source_type}</div>
+                <div className="bg-[#0d0d1a] px-4 py-2.5 text-[10px] text-slate-600 text-right">{((f.content_length ?? 0) / 1000).toFixed(1)}K</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Data Sources */}
       <section className="mb-12">
