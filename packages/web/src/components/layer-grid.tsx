@@ -98,8 +98,38 @@ const LAYER_INFO: Record<string, { title: string; description: string; guidance:
   },
 };
 
+function renderMarkdown(md: string): string {
+  let html = md
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Headers
+    .replace(/^#### (.*$)/gm, '<h4 class="text-sm font-semibold text-slate-200 mt-4 mb-1">$1</h4>')
+    .replace(/^### (.*$)/gm, '<h3 class="text-base font-semibold text-slate-200 mt-5 mb-1">$1</h3>')
+    .replace(/^## (.*$)/gm, '<h2 class="text-lg font-bold text-slate-100 mt-6 mb-2">$1</h2>')
+    .replace(/^# (.*$)/gm, '<h1 class="text-xl font-bold text-slate-100 mt-6 mb-2">$1</h1>')
+    // Bold and italic
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong class="text-slate-200"><em>$1</em></strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-200">$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-white/5 text-purple-300 text-[11px] font-mono">$1</code>')
+    // Unordered lists
+    .replace(/^- (.*$)/gm, '<li class="ml-4 list-disc text-slate-300">$1</li>')
+    .replace(/^\* (.*$)/gm, '<li class="ml-4 list-disc text-slate-300">$1</li>')
+    // Ordered lists
+    .replace(/^\d+\. (.*$)/gm, '<li class="ml-4 list-decimal text-slate-300">$1</li>')
+    // Horizontal rules
+    .replace(/^---$/gm, '<hr class="border-white/[0.06] my-4"/>')
+    // Paragraphs (blank lines)
+    .replace(/\n\n/g, '</p><p class="text-sm text-slate-300 leading-relaxed mb-2">')
+    // Single newlines within paragraphs
+    .replace(/\n/g, '<br/>');
+
+  return `<p class="text-sm text-slate-300 leading-relaxed mb-2">${html}</p>`;
+}
+
 function LayerModal({ layer, onClose }: { layer: LayerData; onClose: () => void }) {
   const [activeFileIndex, setActiveFileIndex] = useState(0);
+  const [viewMode, setViewMode] = useState<'preview' | 'raw'>('preview');
   const info = LAYER_INFO[layer.kind];
   const color = scoreColor(layer.score);
   const importance = IMPORTANCE[layer.kind] ?? 'optional';
@@ -165,17 +195,40 @@ function LayerModal({ layer, onClose }: { layer: LayerData; onClose: () => void 
 
               {activeFile && (
                 <div className="px-6 py-4">
-                  <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                    <span className="text-xs font-mono text-slate-400">{activeFile.relative_path}</span>
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-slate-400">{activeFile.relative_path}</span>
+                      <div className="flex rounded-md overflow-hidden border border-white/[0.08]">
+                        <button
+                          onClick={() => setViewMode('preview')}
+                          className={`px-2.5 py-1 text-[10px] font-medium transition ${viewMode === 'preview' ? 'bg-purple-500/20 text-purple-300' : 'bg-white/[0.02] text-slate-600 hover:text-slate-400'}`}
+                        >
+                          Preview
+                        </button>
+                        <button
+                          onClick={() => setViewMode('raw')}
+                          className={`px-2.5 py-1 text-[10px] font-medium transition ${viewMode === 'raw' ? 'bg-purple-500/20 text-purple-300' : 'bg-white/[0.02] text-slate-600 hover:text-slate-400'}`}
+                        >
+                          Raw
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-3">
                       <span className="text-[10px] text-slate-600">{activeFile.content_length?.toLocaleString()} chars</span>
                       <span className="text-[10px] text-slate-600">{Math.round((activeFile.inferred_confidence ?? 0) * 100)}% confidence</span>
                       <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-slate-500">{activeFile.source_type}</span>
                     </div>
                   </div>
-                  <pre className="bg-[#06060e] border border-white/[0.04] rounded-xl p-4 text-xs text-slate-300 leading-relaxed overflow-x-auto whitespace-pre-wrap font-mono max-h-[400px] overflow-y-auto">
-                    {activeFile.content}
-                  </pre>
+                  {viewMode === 'raw' ? (
+                    <pre className="bg-[#06060e] border border-white/[0.04] rounded-xl p-4 text-xs text-slate-300 leading-relaxed overflow-x-auto whitespace-pre-wrap font-mono max-h-[400px] overflow-y-auto">
+                      {activeFile.content}
+                    </pre>
+                  ) : (
+                    <div
+                      className="bg-[#06060e] border border-white/[0.04] rounded-xl p-5 max-h-[400px] overflow-y-auto prose-sm"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(activeFile.content ?? '') }}
+                    />
+                  )}
                 </div>
               )}
             </>
