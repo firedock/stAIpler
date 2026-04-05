@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { EmpowermentRing } from '@/components/empowerment-ring';
 import { LayerGrid } from '@/components/layer-grid';
 import { Timeline } from '@/components/timeline';
@@ -24,6 +25,27 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
   const isFirstVisit = snapshots.length === 0 && files.length === 0;
   const [showOnboarding, setShowOnboarding] = useState(isFirstVisit);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeResult, setOptimizeResult] = useState<{ generated: string[]; readinessScore: number; grade: string } | null>(null);
+  const router = useRouter();
+
+  async function handleOptimize() {
+    setOptimizing(true);
+    setOptimizeResult(null);
+    try {
+      const res = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setOptimizeResult(data);
+        setTimeout(() => router.refresh(), 1500);
+      }
+    } catch {}
+    setOptimizing(false);
+  }
 
   const score = project.readiness_score ?? 0;
   const grade = project.grade ?? 'F';
@@ -58,14 +80,41 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
           <h1 className="text-2xl font-bold">{project.name}</h1>
           {project.description && <p className="text-sm text-slate-500 mt-1">{project.description}</p>}
         </div>
-        <Link
-          href={`/dashboard/${project.id}/chat`}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-sm font-semibold hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg shadow-purple-500/10"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-          Test Your Agent
-        </Link>
+        <div className="flex gap-3">
+          {missing > 0 && (
+            <button
+              onClick={handleOptimize}
+              disabled={optimizing}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-sm font-semibold hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg shadow-emerald-500/10 disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              {optimizing ? 'Optimizing...' : 'Optimize with AI'}
+            </button>
+          )}
+          <Link
+            href={`/dashboard/${project.id}/chat`}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-sm font-semibold hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg shadow-purple-500/10"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            Test Your Agent
+          </Link>
+        </div>
       </div>
+
+      {/* Optimize result */}
+      {optimizeResult && (
+        <div className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            <div>
+              <span className="text-sm font-semibold text-emerald-300">Optimization complete!</span>
+              <span className="text-sm text-emerald-400 ml-2">
+                Generated {optimizeResult.generated.length} layers ({optimizeResult.generated.join(', ')}) — Score: {optimizeResult.readinessScore}/100 ({optimizeResult.grade})
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Onboarding */}
       {showOnboarding && (

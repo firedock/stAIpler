@@ -8,8 +8,21 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "stAIpler — Context Optimization for AI Agents",
-  description: "Scan your project, find missing instruction layers, and optimize your agent's context with AI. Same model, dramatically better results.",
+  title: "stAIpler — Turn Any AI Agent Into a Subject Expert",
+  description: "stAIpler scans your project, finds missing instruction layers, and optimizes your agent's context with AI. Same model, dramatically better results.",
+  metadataBase: new URL("https://staipler.com"),
+  openGraph: {
+    title: "stAIpler — Turn Any AI Agent Into a Subject Expert",
+    description: "Scan your project, find missing instruction layers, and optimize your agent's context. Works with Claude, Codex, Copilot, Cursor, and every major AI tool.",
+    url: "https://staipler.com",
+    siteName: "stAIpler",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "stAIpler — Turn Any AI Agent Into a Subject Expert",
+    description: "Your AI agent is flying blind. stAIpler scans, analyzes, and optimizes your instruction context. Open source.",
+  },
 };
 
 export default function RootLayout({

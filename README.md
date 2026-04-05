@@ -1,154 +1,132 @@
 # stAIpler
 
-An open contract and delivery system for AI instruction layers.
+**Turn any AI agent into a Subject Expert.**
 
-stAIpler standardizes how markdown-based instruction assets (identity, skills, context, constraints, style, memory) are described, composed, versioned, and compiled into runtime packages for apps and agents.
+Your AI agent is flying blind. It has no idea about your codebase, your business rules, or your coding conventions. stAIpler scans your project, finds what's missing, and builds an optimized instruction stack that transforms a generic AI into a domain expert.
+
+Same model. Dramatically better results.
+
+**https://staipler.com**
+
+## What It Does
+
+```
+$ staipler optimize --scan-only
+
+Scanning for instruction files...
+Found 22 instruction files
+Readiness: 51/100 (F) — 5 layers missing
+
+$ staipler optimize
+
+Generating skills layer... done
+Generating policies layer... done
+Readiness: 95/100 (A) — Agent is a Subject Expert
+```
+
+## How It Works
+
+1. **Scan** — Discovers instruction files across 30+ formats (CLAUDE.md, AGENTS.md, .cursorrules, copilot-instructions.md, SKILL.md, GEMINI.md, and more)
+2. **Analyze** — Maps files to 12 instruction layers and scores your coverage with an Empowerment Score
+3. **Optimize** — AI generates missing layers using your existing project context
+4. **Measure** — A/B tests your optimized stack vs a control to quantify improvement
+
+## The 12 Instruction Layers
+
+| Layer | What It Does | Importance |
+|-------|-------------|------------|
+| **IDENTITY.md** | Who the agent is, its role and persona | Critical |
+| **CONSTRAINTS.md** | Hard limits and non-negotiables | Critical |
+| **GOALS.md** | Success criteria and priorities | Recommended |
+| **CONTEXT.md** | Domain knowledge and business rules | Recommended |
+| **SKILLS.md** | Workflows and decision trees | Recommended |
+| **STYLE.md** | Tone, formatting, response shape | Recommended |
+| **POLICIES.md** | Compliance, legal, brand rules | Recommended |
+| **EXAMPLES.md** | Few-shot examples and templates | Optional |
+| **TOOLS.md** | Available tools and usage rules | Optional |
+| **PROMPTS.md** | Reusable prompt fragments | Optional |
+| **EVALS.md** | Test cases and acceptance criteria | Optional |
+| **MEMORY.md** | Runtime session context (injectable) | Optional |
+
+## Works With Every AI Tool
+
+stAIpler doesn't replace your tools — it makes them all better by ensuring your instruction context is complete.
+
+| Your Tool | stAIpler Imports |
+|-----------|-----------------|
+| Claude Code | CLAUDE.md |
+| OpenAI Codex | AGENTS.md, SKILL.md |
+| GitHub Copilot | copilot-instructions.md, *.instructions.md |
+| Gemini CLI | GEMINI.md |
+| Cursor | .cursorrules, .cursor/rules/*.mdc |
+| Windsurf | .windsurfrules |
+| Cline | .clinerules |
+| Aider | CONVENTIONS.md |
 
 ## Quick Start
 
+### CLI
+
 ```bash
-# Install dependencies
-pnpm install
+# Scan your project
+npx staipler optimize --scan-only
 
-# Build
-pnpm build
+# See the optimization plan
+npx staipler optimize --dry-run
 
-# Validate all stacks
-node packages/cli/dist/index.js validate
+# Run full optimization
+npx staipler optimize --report
 
-# Compile a stack
-node packages/cli/dist/index.js build customer-support --format text
+# A/B test your stack
+npx staipler eval customer-support
 
-# Output as JSON with full provenance
-node packages/cli/dist/index.js build customer-support
-
-# Run tests
-pnpm test
+# View your dashboard
+npx staipler dashboard
 ```
 
-## Concepts
+### Web Dashboard
 
-| Concept | Definition |
-|---------|------------|
-| **Asset** | One markdown instruction file + frontmatter metadata. The atomic unit. |
-| **Stack** | A deployment recipe (`stack.yaml`) that references assets by path. |
-| **Compiled Bundle** | The resolved runtime artifact: final text + sections + provenance. |
-| **Contract** | Optional structural constraint that validates asset sets. |
+Create an account at **https://staipler.com** to:
+- Track your Empowerment Score over time
+- Connect data sources (GitHub, Notion, Google Docs, and more)
+- Test your agent with the split-view chat interface
+- Collaborate with your team
+
+### SDK
+
+```typescript
+import { buildStack, scan, analyze, optimize } from '@staipler/core';
+
+// Scan a project
+const scanResult = scan('/path/to/project');
+const analysis = analyze(scanResult);
+console.log(`Readiness: ${analysis.readinessScore}/100`);
+
+// Compile a stack
+const bundle = buildStack('customer-support', stacksDir, {
+  libraryDir: '/path/to/library',
+});
+console.log(bundle.fullText); // optimized system prompt
+```
 
 ## Project Structure
 
 ```
 staipler/
 ├── packages/
-│   ├── core/          # @staipler/core - types, schemas, parser, compiler
-│   └── cli/           # @staipler/cli - build + validate commands
-├── library/           # Reusable instruction assets
-├── stacks/            # Deployment recipes (stack.yaml)
-├── contracts/         # User-authored structural constraints
-├── schemas/           # Generated JSON schemas
-└── diagrams/          # Mermaid architecture diagrams
+│   ├── core/     # @staipler/core — scanner, analyzer, compiler, optimizer
+│   ├── cli/      # @staipler/cli — build, validate, optimize, eval, dashboard
+│   └── web/      # Next.js web app with Supabase auth
+├── library/      # Instruction assets
+├── stacks/       # Deployment recipes
+├── contracts/    # Structural constraints
+└── site/         # Landing page
 ```
-
-## Asset Format
-
-Assets are markdown files with YAML frontmatter:
-
-```markdown
----
-id: support.skills.triage
-kind: skills
-version: 1.0.0
-title: Triage Skills
-tags: [support]
-compatibility:
-  models: [anthropic, openai]
-priority: 60
----
-
-Classify incoming messages into: billing, technical, account, general.
-```
-
-**Layer types:** identity, goals, context, constraints, skills, style, examples, tools, memory
-
-## Stack Format
-
-Stacks reference assets and configure compilation:
-
-```yaml
-name: customer-support
-version: 1.0.0
-description: Customer support agent
-includes:
-  - asset: core/identity          # from library/
-  - asset: core/safety
-  - asset: support/skills
-  - asset: ./local-override.md    # stack-local file
-build:
-  max_tokens: 8000
-  merge:
-    skills: last-wins
-  target:
-    modelFamily: anthropic
-```
-
-## Contracts
-
-Contracts define structural requirements for asset sets:
-
-```yaml
-name: support-agent
-scope: asset-set
-applies_to:
-  tags: [support]
-requires:
-  must_have_kinds: [skills, context, constraints]
-  all_must_declare:
-    compatibility:
-      models: [anthropic]
-```
-
-## Sample Output
-
-```bash
-$ node packages/cli/dist/index.js build customer-support --format text
-
-## Core Identity
-You are an AI assistant powered by the stAIpler instruction framework...
-
-## Support Context
-You operate in a customer support environment...
-
-## Safety Constraints
-- Never generate harmful, illegal, or deceptive content...
-
-## Support Skills
-Classify incoming messages into: billing, technical, account, general...
-```
-
-## SDK Usage
-
-```typescript
-import { buildStack, parseAsset, validateStack } from '@staipler/core';
-
-const bundle = buildStack('customer-support', stacksDir, {
-  libraryDir: '/path/to/library',
-  contractsDir: '/path/to/contracts',
-});
-
-console.log(bundle.fullText);        // compiled instruction text
-console.log(bundle.hash);            // SHA-256 content hash
-console.log(bundle.sections);        // individual compiled sections
-console.log(bundle.contractResults); // validation results
-```
-
-## Architecture
-
-See [diagrams/](diagrams/) for Mermaid architecture diagrams covering:
-- Full system pipeline
-- Asset reference resolution
-- Two-layer validation model
-- Compiled bundle structure
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
+
+---
+
+Built by [Firedock](https://firedock.com) | [GitHub](https://github.com/firedock/stAIpler) | [Web](https://staipler.com)
