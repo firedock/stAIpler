@@ -198,6 +198,11 @@ export const initCommand = new Command('init')
     console.log('      Add to your CI/CD pipeline or pre-commit hooks. Fails the');
     console.log('      build if your empowerment score drops below your threshold.\n');
 
+    console.log('    \x1b[1mstaipler memory\x1b[0m');
+    console.log('      Inspect your agent\'s memory — every node, link, and cluster.');
+    console.log('      See what your agent knows, how it\'s organized, and what\'s');
+    console.log('      missing. The full picture in your terminal.\n');
+
     console.log('    \x1b[1mstaipler init --proof\x1b[0m');
     console.log('      Run a blind A/B test on your project — AI synthesizes 3');
     console.log('      scenarios, tests your agent before and after optimization,');

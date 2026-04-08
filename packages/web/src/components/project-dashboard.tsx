@@ -9,6 +9,7 @@ import { Timeline } from '@/components/timeline';
 import { DataSourcesPanel } from '@/components/data-sources-panel';
 import { Onboarding } from '@/components/onboarding';
 import { QuickProofCard } from '@/components/quick-proof-card';
+import { MemoryMap } from '@/components/memory-map';
 
 const LAYER_TYPES = [
   'constraints', 'context', 'evals', 'examples',
@@ -166,6 +167,19 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
           <span className="text-xs text-slate-600">{present}/{LAYER_TYPES.length} layers active</span>
         </div>
         <LayerGrid layers={layers} />
+      </section>
+
+      {/* Memory Map */}
+      <section className="mb-12">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">Memory Map</h3>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Everything your agent knows — instruction layers, knowledge base, and how they connect
+            </p>
+          </div>
+        </div>
+        <MemoryMap projectId={project.id} />
       </section>
 
       {/* Scan Report */}

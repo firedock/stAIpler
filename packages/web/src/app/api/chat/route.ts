@@ -19,7 +19,15 @@ const KIND_TITLES: Record<string, string> = {
   prompts: 'Prompts', evals: 'Evals', memory: 'Memory',
 };
 
-function compileSystemPrompt(files: any[]): string {
+interface AttributionEntry {
+  layer: string;
+  fileName: string;
+  path: string;
+  reason: string;
+  confidence: number;
+}
+
+function compileSystemPromptWithAttribution(files: any[]): { prompt: string; attribution: AttributionEntry[] } {
   const byKind: Record<string, any[]> = {};
   for (const file of files) {
     if (!file.inferred_kind || !file.content) continue;
@@ -28,19 +36,57 @@ function compileSystemPrompt(files: any[]): string {
   }
 
   const sections: string[] = [];
+  const attribution: AttributionEntry[] = [];
+
+  const REASON_MAP: Record<string, string> = {
+    identity: 'Defines agent persona and role',
+    constraints: 'Enforces safety rules and boundaries',
+    context: 'Provides domain knowledge',
+    goals: 'Sets priorities and objectives',
+    style: 'Controls tone and formatting',
+    skills: 'Defines workflows and procedures',
+    policies: 'Applies compliance and legal rules',
+    examples: 'Provides reference examples',
+    tools: 'Defines available tool usage',
+    prompts: 'Supplies prompt templates',
+    evals: 'Sets quality criteria',
+    memory: 'Injects session context',
+  };
+
   for (const kind of CANONICAL_ORDER) {
     const kindFiles = byKind[kind];
     if (!kindFiles || kindFiles.length === 0) continue;
     const title = KIND_TITLES[kind] ?? kind;
+
     if (kind === 'identity' || kind === 'style') {
       kindFiles.sort((a: any, b: any) => (b.inferred_confidence ?? 0) - (a.inferred_confidence ?? 0));
       sections.push(`## ${title}\n\n${kindFiles[0].content}`);
+      attribution.push({
+        layer: kind,
+        fileName: kindFiles[0].file_name,
+        path: kindFiles[0].relative_path,
+        reason: REASON_MAP[kind] ?? 'Project context',
+        confidence: kindFiles[0].inferred_confidence ?? 0,
+      });
     } else {
       sections.push(`## ${title}\n\n${kindFiles.map((f: any) => f.content).join('\n\n')}`);
+      for (const f of kindFiles) {
+        attribution.push({
+          layer: kind,
+          fileName: f.file_name,
+          path: f.relative_path,
+          reason: REASON_MAP[kind] ?? 'Project context',
+          confidence: f.inferred_confidence ?? 0,
+        });
+      }
     }
   }
 
-  return sections.join('\n\n');
+  return { prompt: sections.join('\n\n'), attribution };
+}
+
+function compileSystemPrompt(files: any[]): string {
+  return compileSystemPromptWithAttribution(files).prompt;
 }
 
 // Provider: Claude CLI (Max plan — no API key needed)
@@ -177,6 +223,7 @@ export async function POST(request: Request) {
 
     // Compile system prompt if not control mode
     let systemPrompt = '';
+    let attribution: AttributionEntry[] = [];
     if (mode !== 'control') {
       const { data: files } = await supabase
         .from('project_files')
@@ -184,7 +231,9 @@ export async function POST(request: Request) {
         .eq('project_id', projectId);
 
       if (files && files.length > 0) {
-        systemPrompt = compileSystemPrompt(files);
+        const compiled = compileSystemPromptWithAttribution(files);
+        systemPrompt = compiled.prompt;
+        attribution = compiled.attribution;
       }
     }
 
@@ -203,6 +252,11 @@ export async function POST(request: Request) {
     const readable = new ReadableStream({
       async start(controller) {
         try {
+          // Send attribution data first (for stAIpler mode)
+          if (attribution.length > 0) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ attribution })}\n\n`));
+          }
+
           switch (resolvedProvider) {
             case 'claude-cli':
               await streamClaudeCli(systemPrompt, messages, controller, encoder);

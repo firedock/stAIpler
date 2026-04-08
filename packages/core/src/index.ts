@@ -122,6 +122,26 @@ export type {
   FileClass,
 } from './optimizer/index.js';
 
+// Memory Platform
+export {
+  buildMemoryGraph,
+  addRetrievalEvent,
+  attributeRetrieval,
+  LAYER_COLORS,
+  SOURCE_COLORS,
+} from './memory/index.js';
+export type {
+  MemorySourceType,
+  MemoryNode,
+  MemoryCluster,
+  MemoryLink,
+  MemoryGraph,
+  MemoryStats,
+  ClusterType,
+  RetrievalEvent,
+  RetrievalReason,
+} from './memory/index.js';
+
 // Config
 export { loadConfig, DEFAULT_CONFIG } from './config.js';
 export type { StaiplerConfig } from './config.js';

@@ -7,6 +7,13 @@ interface Message {
   content: string;
 }
 
+const LAYER_COLORS: Record<string, string> = {
+  constraints: '#ef4444', context: '#3b82f6', evals: '#6b7280',
+  examples: '#f59e0b', goals: '#10b981', identity: '#8b5cf6',
+  memory: '#ec4899', policies: '#f97316', prompts: '#06b6d4',
+  skills: '#14b8a6', style: '#a855f7', tools: '#64748b',
+};
+
 interface ChatPanelProps {
   projectId: string;
   mode: 'staipler' | 'control';
@@ -111,6 +118,9 @@ export function Chat({ projectId, projectName, initialPrompt }: { projectId: str
   const currentProvider = PROVIDERS.find(p => p.id === provider)!;
   const needsApiKey = provider !== 'claude-cli';
 
+  // Attribution state for stAIpler responses
+  const [attribution, setAttribution] = useState<{ layer: string; fileName: string; reason: string; confidence: number }[]>([]);
+
   async function streamChat(
     projectId: string,
     messages: Message[],
@@ -150,6 +160,9 @@ export function Chat({ projectId, projectName, initialPrompt }: { projectId: str
 
         try {
           const parsed = JSON.parse(data);
+          if (parsed.attribution) {
+            setAttribution(parsed.attribution);
+          }
           if (parsed.text) {
             fullText += parsed.text;
             onChunk(fullText);
@@ -335,6 +348,24 @@ export function Chat({ projectId, projectName, initialPrompt }: { projectId: str
                 label="With stAIpler"
                 accent="#a78bfa"
               />
+              {/* Attribution panel — shows which memories were used */}
+              {attribution.length > 0 && staiplerMessages.length > 0 && (
+                <div className="px-3 py-2 border-t border-white/[0.04] bg-purple-500/[0.03]">
+                  <div className="text-[9px] text-purple-400/60 uppercase tracking-wide mb-1.5">Memory nodes used</div>
+                  <div className="flex flex-wrap gap-1">
+                    {attribution.map((a, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 cursor-default"
+                        title={`${a.reason} (${Math.round(a.confidence * 100)}% confidence)\n${a.path}`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: LAYER_COLORS[a.layer] ?? '#6b7280' }} />
+                        {a.layer}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
