@@ -59,13 +59,15 @@
   .problem-card p { font-size: 0.88rem; color: #64748b; line-height: 1.6; }
 
   /* ---- HOW IT WORKS ---- */
-  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; background: rgba(255,255,255,0.04); border-radius: 12px; overflow: hidden; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: rgba(255,255,255,0.04); border-radius: 12px; overflow: hidden; }
   .step { background: #0d0d1a; padding: 32px 24px; text-align: center; }
   .step-num { width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; margin-bottom: 16px; }
   .step-1 .step-num { background: rgba(107,114,128,0.2); color: #9ca3af; }
   .step-2 .step-num { background: rgba(245,158,11,0.2); color: #f59e0b; }
-  .step-3 .step-num { background: rgba(167,139,250,0.2); color: #a78bfa; }
-  .step-4 .step-num { background: rgba(16,185,129,0.2); color: #10b981; }
+  .step-3 .step-num { background: rgba(59,130,246,0.2); color: #3b82f6; }
+  .step-4 .step-num { background: rgba(167,139,250,0.2); color: #a78bfa; }
+  .step-5 .step-num { background: rgba(236,72,153,0.2); color: #ec4899; }
+  .step-6 .step-num { background: rgba(16,185,129,0.2); color: #10b981; }
   .step h4 { font-size: 0.95rem; margin-bottom: 8px; }
   .step p { font-size: 0.82rem; color: #64748b; }
 
@@ -118,6 +120,7 @@
   @media (max-width: 600px) {
     .steps { grid-template-columns: 1fr; }
     .nav-links a:not(.nav-cta) { display: none; }
+    .hero-terminal { font-size: 0.7rem; padding: 16px; }
   }
 </style>
 </head>
@@ -152,15 +155,17 @@
     <a href="#how-it-works" class="btn-secondary">See How It Works</a>
   </div>
   <div class="hero-terminal">
-    <div><span class="prompt">$</span> <span class="cmd">staipler optimize --scan-only</span></div>
-    <div><span class="output">Scanning for instruction files...</span></div>
-    <div><span class="output">Found 22 instruction files</span></div>
-    <div><span class="output">Readiness:</span> <span class="score-bad">51/100 (F)</span> <span class="output">— 5 layers missing</span></div>
+    <div><span class="prompt">$</span> <span class="cmd">staipler watch</span></div>
     <div>&nbsp;</div>
-    <div><span class="prompt">$</span> <span class="cmd">staipler optimize</span></div>
-    <div><span class="output">Generating skills layer... done</span></div>
-    <div><span class="output">Generating policies layer... done</span></div>
-    <div><span class="output">Readiness:</span> <span class="score">95/100 (A)</span> <span class="output">— +44 improvement</span></div>
+    <div><span class="output">  stAIpler v0.1.0 — watching ~/my-project</span></div>
+    <div>&nbsp;</div>
+    <div><span class="output">  Empowerment:</span> <span class="score">82/100 (B)</span>  <span class="output">██████████████░░░░</span></div>
+    <div><span class="score">  ▲ +8</span> <span class="output">since last change (added CONSTRAINTS.md)</span></div>
+    <div>&nbsp;</div>
+    <div><span class="output">  ✓ identity   100  ✓ style       85  ✓ context     78</span></div>
+    <div><span class="output">  ✓ constraints  92  ✓ skills      74  </span><span class="score-bad">✗ policies     0</span></div>
+    <div>&nbsp;</div>
+    <div><span class="output">  Press</span> <span class="cmd">o</span> <span class="output">optimize ·</span> <span class="cmd">i</span> <span class="output">inject ·</span> <span class="cmd">q</span> <span class="output">quit</span></div>
   </div>
 </div>
 
@@ -199,28 +204,38 @@
 <section id="how-it-works" style="background: rgba(255,255,255,0.01);">
   <div class="container">
     <div class="section-label">How It Works</div>
-    <h2 class="section-title">Four steps to an empowered agent</h2>
-    <p class="section-desc">stAIpler takes your agent from blank slate to subject expert.</p>
+    <h2 class="section-title">Like jest --watch for your AI context</h2>
+    <p class="section-desc">stAIpler gives you constant, live visibility into your agent's context quality.</p>
     <div class="steps">
       <div class="step step-1">
         <div class="step-num">1</div>
         <h4>Scan</h4>
-        <p>Discovers all instruction files across 30+ formats. CLAUDE.md, AGENTS.md, .cursorrules, SKILL.md, copilot-instructions — all detected automatically.</p>
+        <p>Discovers instruction files across 30+ formats. CLAUDE.md, AGENTS.md, .cursorrules, SKILL.md, copilot-instructions — all detected automatically.</p>
       </div>
       <div class="step step-2">
         <div class="step-num">2</div>
         <h4>Analyze</h4>
-        <p>Maps files to instruction layers and scores coverage. Identifies missing identity, constraints, skills, and policies. Gives you a readiness grade.</p>
+        <p>Maps files to 12 instruction layers and scores coverage with an Empowerment Score. Identifies what's missing and what's weak.</p>
       </div>
       <div class="step step-3">
         <div class="step-num">3</div>
-        <h4>Optimize</h4>
-        <p>AI generates missing layers using your existing project context. Doesn't replace what you have — fills the gaps with project-specific content.</p>
+        <h4>Watch</h4>
+        <p>Live terminal dashboard updates as you edit instruction files. See your score change in real-time, like jest --watch for AI context.</p>
       </div>
       <div class="step step-4">
         <div class="step-num">4</div>
-        <h4>Measure</h4>
-        <p>A/B tests your optimized stack against a control. Same model, same task — stAIpler quantifies the improvement with blind LLM-as-judge scoring.</p>
+        <h4>Optimize</h4>
+        <p>AI generates missing layers using your existing project context. Press 'o' in watch mode to optimize on the fly.</p>
+      </div>
+      <div class="step step-5">
+        <div class="step-num">5</div>
+        <h4>Inject</h4>
+        <p>Writes your agent's blind spots directly into its config file. The agent literally knows what context it's missing. No other tool does this.</p>
+      </div>
+      <div class="step step-6">
+        <div class="step-num">6</div>
+        <h4>Gate</h4>
+        <p>CI command enforces minimum scores and required layers in your pipeline. Fail the build if context quality drops below your threshold.</p>
       </div>
     </div>
   </div>

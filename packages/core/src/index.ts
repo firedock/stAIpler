@@ -79,10 +79,16 @@ export {
   getFileTypeInfo,
   getFileTypesByCategory,
   getFileTypesByClass,
+  generateStatusBlock,
+  findInjectTarget,
+  injectStatus,
 } from './optimizer/index.js';
 export type {
   ScannedFile,
   ScanResult,
+  KnowledgeFile,
+  MemoryProvider,
+  Suggestion,
   AnalysisResult,
   LayerAnalysis,
   OptimizationPlan,
@@ -96,6 +102,10 @@ export type {
   FileCategory,
   FileClass,
 } from './optimizer/index.js';
+
+// Config
+export { loadConfig, DEFAULT_CONFIG } from './config.js';
+export type { StaiplerConfig } from './config.js';
 
 // Errors
 export {

@@ -1,5 +1,5 @@
 export { scan } from './scanner.js';
-export type { ScannedFile, ScanResult } from './scanner.js';
+export type { ScannedFile, ScanResult, KnowledgeFile, MemoryProvider, Suggestion } from './scanner.js';
 export { analyze } from './analyzer.js';
 export type { AnalysisResult, LayerAnalysis } from './analyzer.js';
 export { createPlan, optimize } from './agent.js';
@@ -11,3 +11,4 @@ export { generateDashboard } from './dashboard.js';
 export type { DashboardData } from './dashboard.js';
 export { FILE_TYPES, CATEGORY_INFO, CLASS_INFO, getFileTypeInfo, getFileTypesByCategory, getFileTypesByClass } from './file-types.js';
 export type { FileTypeInfo, FileCategory, FileClass } from './file-types.js';
+export { generateStatusBlock, findInjectTarget, injectStatus } from './inject.js';

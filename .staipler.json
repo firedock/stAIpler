@@ -1,0 +1,8 @@
+{
+  "minScore": 70,
+  "requiredLayers": [
+    "identity",
+    "constraints"
+  ],
+  "inject": "CLAUDE.md"
+}

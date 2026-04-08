@@ -7,8 +7,9 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
 
 const CANONICAL_ORDER = [
-  'identity', 'goals', 'context', 'policies', 'constraints',
-  'skills', 'style', 'examples', 'tools', 'prompts', 'evals', 'memory',
+  'constraints', 'context', 'evals', 'examples',
+  'goals', 'identity', 'memory', 'policies',
+  'prompts', 'skills', 'style', 'tools',
 ];
 
 const KIND_TITLES: Record<string, string> = {

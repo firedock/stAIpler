@@ -242,9 +242,9 @@ describe('StackDefinitionSchema', () => {
 describe('Constants', () => {
   it('LAYER_TYPES includes all static and runtime types', () => {
     expect(LAYER_TYPES).toEqual([
-      'identity', 'goals', 'context', 'constraints',
-      'skills', 'style', 'examples', 'tools',
-      'policies', 'evals', 'prompts', 'memory',
+      'constraints', 'context', 'evals', 'examples',
+      'goals', 'identity', 'memory', 'policies',
+      'prompts', 'skills', 'style', 'tools',
     ]);
   });
 

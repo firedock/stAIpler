@@ -10,8 +10,9 @@ import { DataSourcesPanel } from '@/components/data-sources-panel';
 import { Onboarding } from '@/components/onboarding';
 
 const LAYER_TYPES = [
-  'identity', 'goals', 'context', 'policies', 'constraints',
-  'skills', 'style', 'examples', 'tools', 'prompts', 'evals', 'memory',
+  'constraints', 'context', 'evals', 'examples',
+  'goals', 'identity', 'memory', 'policies',
+  'prompts', 'skills', 'style', 'tools',
 ] as const;
 
 interface ProjectDashboardProps {

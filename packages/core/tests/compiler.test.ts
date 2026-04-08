@@ -29,7 +29,7 @@ describe('compiler', () => {
     it('sections in canonical order', () => {
       const bundle = compile('basic-stack', fixturesDir);
       const kinds = bundle.sections.map(s => s.kind);
-      const canonical = ['identity', 'goals', 'context', 'constraints', 'skills', 'style', 'examples', 'tools', 'memory'];
+      const canonical = ['constraints', 'context', 'evals', 'examples', 'goals', 'identity', 'memory', 'policies', 'prompts', 'skills', 'style', 'tools'];
       const filtered = canonical.filter(k => kinds.includes(k as any));
       expect(kinds).toEqual(filtered);
     });

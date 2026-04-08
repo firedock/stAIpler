@@ -57,14 +57,15 @@ function walkMdFiles(dir: string): string[] {
 }
 
 export function findProjectRoot(startDir: string): string {
+  const markers = ['staipler.config.yaml', '.staipler.json', 'staipler.json'];
   let dir = resolve(startDir);
   while (true) {
-    if (existsSync(join(dir, 'staipler.config.yaml'))) {
-      return dir;
+    for (const marker of markers) {
+      if (existsSync(join(dir, marker))) return dir;
     }
     const parent = dirname(dir);
     if (parent === dir) {
-      throw new ResolveError('Could not find project root (no staipler.config.yaml)', startDir);
+      throw new ResolveError('Could not find project root (no staipler.config.yaml or .staipler.json)', startDir);
     }
     dir = parent;
   }

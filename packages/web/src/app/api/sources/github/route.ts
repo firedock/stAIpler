@@ -192,7 +192,7 @@ export async function POST(request: Request) {
     }
 
     // Calculate overall readiness
-    const allKinds = ['identity', 'goals', 'context', 'policies', 'constraints', 'skills', 'style', 'examples', 'tools', 'prompts', 'evals', 'memory'];
+    const allKinds = ['constraints', 'context', 'evals', 'examples', 'goals', 'identity', 'memory', 'policies', 'prompts', 'skills', 'style', 'tools'];
     const weights: Record<string, number> = { identity: 3, constraints: 3, context: 2, skills: 2, goals: 2, style: 2, policies: 2, examples: 1, tools: 1, evals: 1, prompts: 1, memory: 1 };
     let totalWeight = 0;
     let weightedScore = 0;

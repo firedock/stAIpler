@@ -4,16 +4,18 @@ import type { LayerType, MergeStrategy } from './types.js';
 // === Constants ===
 
 export const STATIC_LAYER_TYPES = [
-  'identity', 'goals', 'context', 'constraints',
-  'skills', 'style', 'examples', 'tools',
-  'policies', 'evals', 'prompts',
+  'constraints', 'context', 'evals', 'examples',
+  'goals', 'identity', 'policies', 'prompts',
+  'skills', 'style', 'tools',
 ] as const;
 
 export const RUNTIME_LAYER_TYPES = ['memory'] as const;
 
+/** All layer types in alphabetical order */
 export const LAYER_TYPES: LayerType[] = [
-  ...STATIC_LAYER_TYPES,
-  ...RUNTIME_LAYER_TYPES,
+  'constraints', 'context', 'evals', 'examples',
+  'goals', 'identity', 'memory', 'policies',
+  'prompts', 'skills', 'style', 'tools',
 ];
 
 export const REQUIRED_LAYER_TYPES: LayerType[] = ['identity', 'constraints'];
@@ -33,12 +35,11 @@ export const DEFAULT_MERGE_STRATEGIES: Record<LayerType, MergeStrategy> = {
   memory: 'concatenate',
 };
 
-// === Canonical section order ===
-// IDENTITY → GOALS → CONTEXT → POLICIES → CONSTRAINTS → SKILLS →
-// STYLE → EXAMPLES → TOOLS → PROMPTS → EVALS → MEMORY
+// === Canonical section order (alphabetical) ===
 export const CANONICAL_SECTION_ORDER: LayerType[] = [
-  'identity', 'goals', 'context', 'policies', 'constraints',
-  'skills', 'style', 'examples', 'tools', 'prompts', 'evals', 'memory',
+  'constraints', 'context', 'evals', 'examples',
+  'goals', 'identity', 'memory', 'policies',
+  'prompts', 'skills', 'style', 'tools',
 ];
 
 // === Zod Schemas ===
