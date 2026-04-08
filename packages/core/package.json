@@ -1,6 +1,7 @@
 {
   "name": "@staipler/core",
   "version": "0.1.0",
+  "description": "AI agent context optimizer — scanner, analyzer, compiler, and optimizer for instruction layers",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,10 +11,33 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",
     "dev": "tsup src/index.ts --format esm --dts --watch"
   },
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "context",
+    "instruction",
+    "prompt",
+    "optimization",
+    "claude",
+    "cursor",
+    "copilot",
+    "mcp"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/firedock/stAIpler.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://staipler.com",
   "dependencies": {
     "gray-matter": "^4.0.3",
     "yaml": "^2.7.0",

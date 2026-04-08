@@ -74,7 +74,7 @@ const PROVIDERS = [
   { id: 'openai', name: 'OpenAI API', desc: 'API key required', models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'] },
 ];
 
-export function Chat({ projectId, projectName }: { projectId: string; projectName: string }) {
+export function Chat({ projectId, projectName, initialPrompt }: { projectId: string; projectName: string; initialPrompt?: string }) {
   const [input, setInput] = useState('');
   const [splitView, setSplitView] = useState(true);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -92,6 +92,21 @@ export function Chat({ projectId, projectName }: { projectId: string; projectNam
   const [controlStreaming, setControlStreaming] = useState('');
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const autoSentRef = useRef(false);
+
+  // Auto-send initialPrompt once on mount (for prove-value demo)
+  useEffect(() => {
+    if (initialPrompt && !autoSentRef.current) {
+      autoSentRef.current = true;
+      setSplitView(true);
+      setInput(initialPrompt);
+      // Delay to let state settle, then trigger send
+      setTimeout(() => {
+        setInput('');
+        handleSendWithMessage(initialPrompt);
+      }, 100);
+    }
+  }, [initialPrompt]);
 
   const currentProvider = PROVIDERS.find(p => p.id === provider)!;
   const needsApiKey = provider !== 'claude-cli';
@@ -150,10 +165,9 @@ export function Chat({ projectId, projectName }: { projectId: string; projectNam
     onDone(fullText);
   }
 
-  async function handleSend() {
-    if (!input.trim() || isStreaming) return;
-    const userMessage = input.trim();
-    setInput('');
+  async function handleSendWithMessage(message: string) {
+    if (!message.trim() || isStreaming) return;
+    const userMessage = message.trim();
     setIsStreaming(true);
 
     const userMsg: Message = { role: 'user', content: userMessage };
@@ -200,6 +214,13 @@ export function Chat({ projectId, projectName }: { projectId: string; projectNam
     await Promise.all(streams);
     setIsStreaming(false);
     inputRef.current?.focus();
+  }
+
+  function handleSend() {
+    if (!input.trim()) return;
+    const msg = input.trim();
+    setInput('');
+    handleSendWithMessage(msg);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {

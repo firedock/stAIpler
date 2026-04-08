@@ -8,6 +8,7 @@ import { LayerGrid } from '@/components/layer-grid';
 import { Timeline } from '@/components/timeline';
 import { DataSourcesPanel } from '@/components/data-sources-panel';
 import { Onboarding } from '@/components/onboarding';
+import { QuickProofCard } from '@/components/quick-proof-card';
 
 const LAYER_TYPES = [
   'constraints', 'context', 'evals', 'examples',
@@ -124,6 +125,11 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
           onDismiss={() => setShowOnboarding(false)}
           onConnectSource={handleConnectSource}
         />
+      )}
+
+      {/* Quick Proof — show for new projects */}
+      {snapshots.length < 2 && !showOnboarding && (
+        <QuickProofCard projectId={project.id} projectName={project.name} />
       )}
 
       {/* Hero metrics */}

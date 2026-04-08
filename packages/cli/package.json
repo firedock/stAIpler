@@ -1,13 +1,39 @@
 {
   "name": "@staipler/cli",
   "version": "0.1.0",
+  "description": "CLI for stAIpler — scan, score, watch, and optimize your AI agent's instruction stack",
   "type": "module",
   "bin": {
     "staipler": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts"
   },
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "cli",
+    "context",
+    "instruction",
+    "prompt",
+    "optimization",
+    "claude",
+    "cursor",
+    "copilot",
+    "mcp",
+    "staipler"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/firedock/stAIpler.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://staipler.com",
   "dependencies": {
     "@staipler/core": "workspace:*",
     "chalk": "^5.4.0",

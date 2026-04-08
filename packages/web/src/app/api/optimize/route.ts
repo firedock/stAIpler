@@ -14,7 +14,7 @@ const LAYER_GUIDANCE: Record<string, string> = {
   policies: 'Define compliance, trust, legal, brand, or safety rules.',
   constraints: 'Define hard limits and non-negotiables — what the AI must never do.',
   skills: 'Define procedural know-how, workflows, and decision trees.',
-  style: 'Define tone, formatting, response shape, and writing conventions.',
+  style: 'Define tone, formatting, response shape, writing conventions, AND communication dynamics — should the AI push back when it disagrees? Ask clarifying questions vs assume? Lead with answers or explanations? These interaction patterns are the most impactful style choices.',
   examples: 'Provide few-shot examples and canonical before/after transformations.',
   tools: 'Define available tools, when to use them, and usage rules.',
   prompts: 'Define reusable prompt fragments and tested instruction snippets.',

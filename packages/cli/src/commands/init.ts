@@ -41,12 +41,16 @@ export const initCommand = new Command('init')
   .option('--inject <file>', 'Agent config file to inject status into (e.g., CLAUDE.md)')
   .option('--min-score <n>', 'Minimum score for CI checks', parseInt)
   .option('--yes', 'Skip prompts, use defaults')
-  .action(async (opts: { inject?: string; minScore?: number; yes?: boolean }) => {
+  .option('--proof', 'Run quick proof after init')
+  .option('--no-proof', 'Skip quick proof')
+  .action(async (opts: { inject?: string; minScore?: number; yes?: boolean; proof?: boolean }) => {
     const projectDir = process.cwd();
     const projectName = basename(projectDir);
     const configPath = resolve(projectDir, '.staipler.json');
 
-    console.log(`\n  \x1b[1mstAIpler init\x1b[0m — setting up ${projectName}\n`);
+    const purple = '\x1b[38;5;135m';
+    const r = '\x1b[0m';
+    console.log(`\n  ${purple}\x1b[1mstAIpler init${r} — setting up ${projectName}\n`);
 
     // Step 1: Check for existing config
     const { configPath: existingConfig } = loadConfig(projectDir);
@@ -55,12 +59,19 @@ export const initCommand = new Command('init')
     }
 
     // Step 2: Run initial scan
-    console.log('  Scanning for instruction files...');
+    console.log(`  ${purple}\x1b[1mScanning for instruction files...${r}`);
     const scanResult = scan(projectDir);
     const analysis = analyze(scanResult);
 
-    console.log(`  Found ${scanResult.files.length} instruction files`);
-    console.log(`  Empowerment: ${analysis.readinessScore}/100 (${analysis.grade})\n`);
+    console.log(`  Found \x1b[1m${scanResult.files.length}\x1b[0m instruction files\n`);
+
+    const score = analysis.readinessScore;
+    const grade = analysis.grade;
+    const gc = score >= 80 ? '\x1b[32m' : score >= 60 ? '\x1b[33m' : '\x1b[31m';
+    const barWidth = 30;
+    const filled = Math.round((score / 100) * barWidth);
+    const bar = `${gc}${'█'.repeat(filled)}\x1b[2m${'░'.repeat(barWidth - filled)}\x1b[0m`;
+    console.log(`  ${bar}  \x1b[1m${gc}${score}/100 (${grade})\x1b[0m  Empowerment Score\n`);
 
     // Step 3: Detect or choose agent file for injection
     let injectTarget = opts.inject ?? null;
@@ -80,7 +91,6 @@ export const initCommand = new Command('init')
     };
 
     writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-    console.log('  Created .staipler.json');
 
     // Step 5: Inject status into agent file
     if (injectTarget) {
@@ -112,15 +122,14 @@ export const initCommand = new Command('init')
     const missing = analysis.layers.filter(l => l.status === 'missing');
     const present = analysis.layers.filter(l => l.status === 'present');
 
-    console.log('\n  \x1b[1m\x1b[32mReady!\x1b[0m\n');
-    console.log('  \x1b[2mCreated:\x1b[0m');
+    console.log(`\n  ${purple}Created:${r}`);
     console.log('    .staipler.json     — project config');
     if (injectTarget) {
       console.log(`    ${injectTarget.padEnd(20)} — agent status (auto-updates)`);
     }
     console.log('    .staipler/kpi.json — score history\n');
 
-    console.log('  \x1b[2mLayer coverage:\x1b[0m');
+    console.log(`\n  ${purple}Layer coverage:${r}`);
     for (const layer of analysis.layers) {
       const icon = layer.status === 'present' ? '\x1b[32m✓\x1b[0m' : layer.status === 'weak' ? '\x1b[33m~\x1b[0m' : '\x1b[31m✗\x1b[0m';
       const hint = LAYER_HINTS[layer.kind] ?? '';
@@ -149,12 +158,12 @@ export const initCommand = new Command('init')
         byLayer.get(s.layer)!.push(s);
       }
 
-      console.log(`\n  \x1b[33m?\x1b[0m \x1b[1mSuggestions\x1b[0m \x1b[2m(based on your project)\x1b[0m`);
+      console.log(`\n  ${purple}Suggestions (based on your project):${r}`);
       for (const [layer, layerSuggestions] of byLayer) {
-        console.log(`\n    \x1b[2m${layer}:\x1b[0m`);
         for (const s of layerSuggestions) {
-          console.log(`    \x1b[2m•\x1b[0m ${s.name.padEnd(20)} \x1b[2m${s.description}\x1b[0m`);
-          console.log(`      \x1b[2m${s.url}  (${s.reason})\x1b[0m`);
+          // 6 (indent + icon + space) + 14 (layer) + 1 (space) + 20 (name) + 1 (space) = 42 chars before description
+          console.log(`    \x1b[33m?\x1b[0m ${layer.padEnd(14)} ${s.name.padEnd(20)} \x1b[2m${s.description}\x1b[0m`);
+          console.log(`${''.padEnd(42)}\x1b[36m${s.url}\x1b[0m`);
         }
       }
     }
@@ -163,22 +172,40 @@ export const initCommand = new Command('init')
     const kb = scanResult.knowledgeBase;
     if (kb.length > 0) {
       const totalKbSize = kb.reduce((s, f) => s + f.size, 0);
-      console.log(`\n  \x1b[2mKnowledge base: ${kb.length} files (${(totalKbSize / 1024).toFixed(1)}K) the model can see\x1b[0m`);
+      console.log(`\n  ${purple}Knowledge base: ${kb.length} files (${(totalKbSize / 1024).toFixed(1)}K) the model can see${r}`);
       for (const file of kb) {
         const sizeStr = file.size >= 1024
           ? `${(file.size / 1024).toFixed(1)}K`
           : `${file.size}B`;
-        console.log(`    \x1b[2m•\x1b[0m ${file.relativePath.padEnd(36)} \x1b[2m${file.description.padEnd(26)} ${sizeStr}\x1b[0m`);
+        console.log(`    \x1b[2m•\x1b[0m ${file.relativePath.padEnd(44)} \x1b[2m${file.description.padEnd(28)} ${sizeStr.padStart(6)}\x1b[0m`);
       }
     } else {
-      console.log(`\n  \x1b[2mKnowledge base: no project docs found (README.md, package.json, etc.)\x1b[0m`);
+      console.log(`\n  ${purple}Knowledge base: no project docs found (README.md, package.json, etc.)${r}`);
     }
 
-    console.log('\n  \x1b[2mNext steps:\x1b[0m');
-    console.log('    staipler watch        — live score as you work');
+    console.log(`\n  ${purple}Next steps:${r}\n`);
+    console.log('    \x1b[1mstaipler watch\x1b[0m');
+    console.log('      Live terminal dashboard that updates your empowerment score');
+    console.log('      every time you edit an instruction file. Like jest --watch');
+    console.log('      for your AI context. Press \'o\' to optimize, \'i\' to inject.\n');
     if (missing.length > 0) {
-      console.log('    staipler optimize     — AI fills missing layers');
+      console.log('    \x1b[1mstaipler optimize\x1b[0m');
+      console.log('      AI reads your project and generates missing instruction');
+      console.log('      layers — identity, constraints, context, policies, and more.');
+      console.log('      Each layer is a markdown file you can review and edit.\n');
     }
-    console.log('    staipler ci           — add to your CI/CD pipeline');
-    console.log('');
+    console.log('    \x1b[1mstaipler ci --min-score 70\x1b[0m');
+    console.log('      Add to your CI/CD pipeline or pre-commit hooks. Fails the');
+    console.log('      build if your empowerment score drops below your threshold.\n');
+
+    console.log('    \x1b[1mstaipler init --proof\x1b[0m');
+    console.log('      Run a blind A/B test on your project — AI synthesizes 3');
+    console.log('      scenarios, tests your agent before and after optimization,');
+    console.log('      and shows what changed in plain English. ~90 seconds.\n');
+
+    // Run quick proof only if explicitly requested with --proof
+    if (opts.proof && process.stdin.isTTY) {
+      const { runQuickProof } = await import('./quick-proof.js');
+      await runQuickProof(analysis, scanResult, 'sonnet', projectDir);
+    }
   });

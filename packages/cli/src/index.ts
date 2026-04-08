@@ -9,6 +9,7 @@ import { watchCommand } from './commands/watch.js';
 import { ciCommand } from './commands/ci.js';
 import { injectCommand } from './commands/inject.js';
 import { initCommand } from './commands/init.js';
+import { evalProjectCommand } from './commands/eval-project.js';
 
 const program = new Command()
   .name('staipler')
@@ -24,5 +25,6 @@ program.addCommand(dashboardCommand);
 program.addCommand(watchCommand);
 program.addCommand(ciCommand);
 program.addCommand(injectCommand);
+program.addCommand(evalProjectCommand);
 
 program.parse();

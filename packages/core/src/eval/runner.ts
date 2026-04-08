@@ -189,3 +189,97 @@ function computeAggregates(results: ScenarioRunResult[]): AggregateResult {
 
   return { controlAvg, staiplerAvg, controlOverall, staiplerOverall, wins, improvement };
 }
+
+// ---- Benchmark Eval (for Quick Proof and full Benchmark) ----
+
+import type { SynthesizedScenario } from './synthesize.js';
+import { buildBenchmarkJudgePrompt, parseBenchmarkJudgeResponse } from './judge.js';
+
+export interface BenchmarkEvalConfig {
+  /** System prompt for the stAIpler run (null = no instruction stack) */
+  systemPrompt: string | null;
+  /** Scenarios with requirements */
+  scenarios: SynthesizedScenario[];
+  /** Label for this run ("before" or "after") */
+  label: string;
+  /** Injected Claude caller — keeps core provider-free */
+  callClaude: (prompt: string, systemPrompt: string | null, model: string) => string;
+  /** Model to use */
+  model?: string;
+  /** Progress callback */
+  onProgress?: (msg: string) => void;
+}
+
+/**
+ * Run a benchmark eval with injected Claude caller.
+ * Same blind judging as runEval, but accepts system prompt directly
+ * and uses the benchmark judge (generic framing + requirements).
+ */
+export function runBenchmarkEval(config: BenchmarkEvalConfig): EvalRunResult {
+  const model = config.model ?? 'sonnet';
+  const runAt = new Date().toISOString();
+  const progress = config.onProgress ?? (() => {});
+
+  const scenarioResults: ScenarioRunResult[] = [];
+
+  for (let i = 0; i < config.scenarios.length; i++) {
+    const scenario = config.scenarios[i];
+    progress(`[${i + 1}/${config.scenarios.length}] ${scenario.name}`);
+
+    // Control: no system prompt
+    progress(`  Running control...`);
+    const controlResponse = config.callClaude(scenario.userMessage, null, model);
+
+    // stAIpler: with system prompt (if provided)
+    progress(`  Running ${config.label}...`);
+    const staiplerResponse = config.callClaude(scenario.userMessage, config.systemPrompt, model);
+
+    // Blind judge with shuffled order
+    const shuffle = Math.random() > 0.5;
+    const labelOrder: ['control' | 'staipler', 'control' | 'staipler'] = shuffle
+      ? ['staipler', 'control']
+      : ['control', 'staipler'];
+    const responseA = shuffle ? staiplerResponse : controlResponse;
+    const responseB = shuffle ? controlResponse : staiplerResponse;
+
+    const judgePrompt = buildBenchmarkJudgePrompt(
+      scenario.name,
+      scenario.description,
+      scenario.userMessage,
+      responseA,
+      responseB,
+      scenario.requirements,
+    );
+
+    let judgeResult: JudgeResult;
+    try {
+      progress(`  Judging...`);
+      const judgeRaw = config.callClaude(judgePrompt, null, model);
+      judgeResult = parseBenchmarkJudgeResponse(judgeRaw, scenario.id, scenario.name, labelOrder);
+    } catch {
+      // Retry once on parse failure
+      progress(`  Retrying judge...`);
+      const retryRaw = config.callClaude(judgePrompt, null, model);
+      judgeResult = parseBenchmarkJudgeResponse(retryRaw, scenario.id, scenario.name, labelOrder);
+    }
+
+    const reqMet = judgeResult.staipler.requirementsMet ?? [];
+    const reqPassed = reqMet.filter(Boolean).length;
+    progress(`  ${reqPassed}/${scenario.requirements.length} requirements met`);
+
+    scenarioResults.push({
+      scenario,
+      controlResponse,
+      staiplerResponse,
+      judge: judgeResult,
+    });
+  }
+
+  const aggregate = computeAggregates(scenarioResults);
+
+  return {
+    config: { stackName: config.label, model, runAt },
+    scenarios: scenarioResults,
+    aggregate,
+  };
+}

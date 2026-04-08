@@ -50,6 +50,19 @@ export {
   runEval,
   generateReport,
   SCORING_DIMENSIONS,
+  selectSecondQuestion,
+  getConstraintQuestion,
+  sanitizeAnswer,
+  synthesizeTestPrompt,
+  buildDemoSystemPrompt,
+  buildDemoPlan,
+  extractSynthesisContext,
+  buildSynthesisPrompt,
+  parseSynthesisResponse,
+  getFallbackScenarios,
+  buildBenchmarkJudgePrompt,
+  parseBenchmarkJudgeResponse,
+  runBenchmarkEval,
 } from './eval/index.js';
 export type {
   EvalScenario,
@@ -59,6 +72,12 @@ export type {
   AggregateResult,
   JudgeResult,
   ScoreResult,
+  DemoQuestion,
+  DemoAnswers,
+  DemoPlan,
+  SynthesizedScenario,
+  SynthesisContext,
+  BenchmarkEvalConfig,
 } from './eval/index.js';
 
 // Optimizer
