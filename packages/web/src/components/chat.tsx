@@ -119,7 +119,7 @@ export function Chat({ projectId, projectName, initialPrompt }: { projectId: str
   const needsApiKey = provider !== 'claude-cli';
 
   // Attribution state for stAIpler responses
-  const [attribution, setAttribution] = useState<{ layer: string; fileName: string; reason: string; confidence: number }[]>([]);
+  const [attribution, setAttribution] = useState<{ layer: string; fileName: string; path: string; reason: string; confidence: number }[]>([]);
 
   async function streamChat(
     projectId: string,

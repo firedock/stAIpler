@@ -12,3 +12,5 @@ export type { DashboardData } from './dashboard.js';
 export { FILE_TYPES, CATEGORY_INFO, CLASS_INFO, getFileTypeInfo, getFileTypesByCategory, getFileTypesByClass } from './file-types.js';
 export type { FileTypeInfo, FileCategory, FileClass } from './file-types.js';
 export { generateStatusBlock, findInjectTarget, injectStatus } from './inject.js';
+export { generateInitReport } from './init-report.js';
+export type { InitReportData } from './init-report.js';

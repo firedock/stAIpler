@@ -151,12 +151,23 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
               : `Only ${present} of ${LAYER_TYPES.length} layers are covered. The agent is missing critical context and will fall back to generic behavior.`
             }
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 mb-4">
             <div className="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-sm font-medium">{present} present</div>
             {missing > 0 && <div className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 text-sm font-medium">{missing} missing</div>}
             <div className="px-4 py-2 rounded-lg bg-purple-500/10 text-purple-400 text-sm font-medium">{files.length} files</div>
             <div className="px-4 py-2 rounded-lg bg-white/5 text-slate-400 text-sm font-medium">{snapshots.length} snapshots</div>
           </div>
+          <a
+            href={`/api/init-report?projectId=${project.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 text-sm font-semibold hover:opacity-90 transition-opacity"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            View full report
+          </a>
         </div>
       </div>
 

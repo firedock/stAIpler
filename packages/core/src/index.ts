@@ -101,6 +101,7 @@ export {
   generateStatusBlock,
   findInjectTarget,
   injectStatus,
+  generateInitReport,
 } from './optimizer/index.js';
 export type {
   ScannedFile,
@@ -120,6 +121,7 @@ export type {
   FileTypeInfo,
   FileCategory,
   FileClass,
+  InitReportData,
 } from './optimizer/index.js';
 
 // Memory Platform

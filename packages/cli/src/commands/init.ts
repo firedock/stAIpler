@@ -1,31 +1,18 @@
 import { Command } from 'commander';
-import { existsSync, writeFileSync } from 'fs';
-import { resolve, basename, relative } from 'path';
+import { existsSync, writeFileSync, mkdirSync } from 'fs';
+import { resolve, basename } from 'path';
+import { execSync } from 'child_process';
 import {
   scan,
   analyze,
   loadConfig,
   DEFAULT_CONFIG,
-  findInjectTarget,
   injectStatus,
   saveKpiSnapshot,
+  generateInitReport,
 } from '@staipler/core';
 import type { KpiSnapshot, StaiplerConfig } from '@staipler/core';
-
-const LAYER_HINTS: Record<string, string> = {
-  constraints: 'Hard limits and non-negotiables',
-  context: 'Domain knowledge and business rules',
-  evals: 'Test cases and acceptance criteria',
-  examples: 'Few-shot examples and templates',
-  goals: 'Success criteria and priorities',
-  identity: 'Role, persona, and character',
-  memory: 'Runtime session context',
-  policies: 'Compliance, legal, brand rules',
-  prompts: 'Reusable prompt fragments',
-  skills: 'Workflows and decision trees',
-  style: 'Tone, formatting, response shape',
-  tools: 'Available tools and usage rules',
-};
+import { uploadReport } from '../utils/upload-report.js';
 
 const AGENT_FILES = ['CLAUDE.md', 'AGENTS.md', '.cursorrules', '.windsurfrules', '.clinerules', 'GEMINI.md'];
 
@@ -36,6 +23,21 @@ function detectAgentFile(dir: string): string | null {
   return null;
 }
 
+function openInBrowser(filePath: string): void {
+  try {
+    const platform = process.platform;
+    if (platform === 'darwin') {
+      execSync(`open "${filePath}"`, { stdio: 'ignore' });
+    } else if (platform === 'win32') {
+      execSync(`start "" "${filePath}"`, { stdio: 'ignore' });
+    } else {
+      execSync(`xdg-open "${filePath}"`, { stdio: 'ignore' });
+    }
+  } catch {
+    // Silently fail — URL is printed regardless
+  }
+}
+
 export const initCommand = new Command('init')
   .description('Initialize stAIpler in your project — creates config, runs first scan, and injects agent status')
   .option('--inject <file>', 'Agent config file to inject status into (e.g., CLAUDE.md)')
@@ -43,35 +45,33 @@ export const initCommand = new Command('init')
   .option('--yes', 'Skip prompts, use defaults')
   .option('--proof', 'Run quick proof after init')
   .option('--no-proof', 'Skip quick proof')
-  .action(async (opts: { inject?: string; minScore?: number; yes?: boolean; proof?: boolean }) => {
+  .option('--no-open', 'Don\'t auto-open the report in browser')
+  .option('--no-share', 'Don\'t upload the report to staipler.com (local only)')
+  .action(async (opts: { inject?: string; minScore?: number; yes?: boolean; proof?: boolean; open?: boolean; share?: boolean }) => {
     const projectDir = process.cwd();
     const projectName = basename(projectDir);
     const configPath = resolve(projectDir, '.staipler.json');
 
     const purple = '\x1b[38;5;135m';
     const r = '\x1b[0m';
-    console.log(`\n  ${purple}\x1b[1mstAIpler init${r} — setting up ${projectName}\n`);
+    const bold = '\x1b[1m';
+    const dim = '\x1b[2m';
+
+    console.log(`\n  ${purple}${bold}stAIpler init${r} — setting up ${projectName}\n`);
 
     // Step 1: Check for existing config
     const { configPath: existingConfig } = loadConfig(projectDir);
     if (existingConfig && resolve(existingConfig) === configPath) {
-      console.log(`  \x1b[33m!\x1b[0m .staipler.json already exists — updating\n`);
+      console.log(`  ${dim}Updating existing .staipler.json${r}`);
     }
 
     // Step 2: Run initial scan
-    console.log(`  ${purple}\x1b[1mScanning for instruction files...${r}`);
     const scanResult = scan(projectDir);
     const analysis = analyze(scanResult);
-
-    console.log(`  Found \x1b[1m${scanResult.files.length}\x1b[0m instruction files\n`);
-
     const score = analysis.readinessScore;
     const grade = analysis.grade;
-    const gc = score >= 80 ? '\x1b[32m' : score >= 60 ? '\x1b[33m' : '\x1b[31m';
-    const barWidth = 30;
-    const filled = Math.round((score / 100) * barWidth);
-    const bar = `${gc}${'█'.repeat(filled)}\x1b[2m${'░'.repeat(barWidth - filled)}\x1b[0m`;
-    console.log(`  ${bar}  \x1b[1m${gc}${score}/100 (${grade})\x1b[0m  Empowerment Score\n`);
+    const present = analysis.layers.filter(l => l.status === 'present').length;
+    const missing = analysis.layers.filter(l => l.status === 'missing').length;
 
     // Step 3: Detect or choose agent file for injection
     let injectTarget = opts.inject ?? null;
@@ -79,7 +79,6 @@ export const initCommand = new Command('init')
       const detected = detectAgentFile(projectDir);
       if (detected) {
         injectTarget = detected;
-        console.log(`  Detected agent config: ${detected}`);
       }
     }
 
@@ -89,18 +88,12 @@ export const initCommand = new Command('init')
       requiredLayers: DEFAULT_CONFIG.requiredLayers,
       inject: injectTarget,
     };
-
     writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
 
     // Step 5: Inject status into agent file
     if (injectTarget) {
       const targetPath = resolve(projectDir, injectTarget);
-      const result = injectStatus(targetPath, analysis);
-      if (result.created) {
-        console.log(`  Created ${injectTarget} with empowerment status`);
-      } else {
-        console.log(`  Injected status into ${injectTarget}`);
-      }
+      injectStatus(targetPath, analysis);
     }
 
     // Step 6: Save initial KPI snapshot
@@ -118,95 +111,51 @@ export const initCommand = new Command('init')
       // Non-fatal
     }
 
-    // Step 7: Print summary
-    const missing = analysis.layers.filter(l => l.status === 'missing');
-    const present = analysis.layers.filter(l => l.status === 'present');
+    // Step 7: Generate the HTML report
+    const reportDir = resolve(projectDir, '.staipler');
+    mkdirSync(reportDir, { recursive: true });
+    const reportPath = resolve(reportDir, 'report.html');
+    const html = generateInitReport({ projectName, analysis, scanResult, injectTarget });
+    writeFileSync(reportPath, html);
 
-    console.log(`\n  ${purple}Created:${r}`);
-    console.log('    .staipler.json     — project config');
-    if (injectTarget) {
-      console.log(`    ${injectTarget.padEnd(20)} — agent status (auto-updates)`);
-    }
-    console.log('    .staipler/kpi.json — score history\n');
+    // ---- TERMINAL OUTPUT (minimal) ----
+    const gc = score >= 80 ? '\x1b[32m' : score >= 60 ? '\x1b[33m' : '\x1b[31m';
+    const barWidth = 30;
+    const filled = Math.round((score / 100) * barWidth);
+    const bar = `${gc}${'█'.repeat(filled)}${dim}${'░'.repeat(barWidth - filled)}${r}`;
+    console.log(`  ${bar}  ${bold}${gc}${score}/100 (${grade})${r}  Empowerment Score`);
+    console.log(`  ${dim}${scanResult.files.length} instruction files · ${present} layers present · ${missing} missing${r}\n`);
 
-    console.log(`\n  ${purple}Layer coverage:${r}`);
-    for (const layer of analysis.layers) {
-      const icon = layer.status === 'present' ? '\x1b[32m✓\x1b[0m' : layer.status === 'weak' ? '\x1b[33m~\x1b[0m' : '\x1b[31m✗\x1b[0m';
-      const hint = LAYER_HINTS[layer.kind] ?? '';
-      // Show the highest-confidence file, skip low-confidence matches
-      const bestFile = layer.files.length > 0
-        ? layer.files.reduce((a, b) => a.inferredConfidence > b.inferredConfidence ? a : b)
-        : null;
-      const filePath = bestFile && bestFile.inferredConfidence >= 0.5
-        ? `\x1b[36m${bestFile.relativePath}\x1b[0m`
-        : '';
-      // Special handling for memory layer — show provider if detected
-      if (layer.kind === 'memory' && scanResult.memoryProvider) {
-        const mp = scanResult.memoryProvider;
-        console.log(`    ${icon} ${layer.kind.padEnd(14)} ${hint.padEnd(36)} \x1b[32m${mp.name}\x1b[0m \x1b[2m(${mp.detectedVia}: ${mp.source})\x1b[0m`);
-      } else {
-        console.log(`    ${icon} ${layer.kind.padEnd(14)} ${hint.padEnd(36)} ${filePath}`);
+    // Try to upload the report to staipler.com for a public shareable URL
+    let publicUrl: string | null = null;
+    if (opts.share !== false) {
+      const uploaded = await uploadReport({
+        projectName,
+        html,
+        score,
+        grade,
+        presentLayers: present,
+        missingLayers: missing,
+      });
+      if (uploaded) {
+        publicUrl = uploaded.url;
       }
     }
 
-    // Context-aware suggestions grouped by layer
-    const suggestions = scanResult.suggestions;
-    if (suggestions.length > 0) {
-      const byLayer = new Map<string, typeof suggestions>();
-      for (const s of suggestions) {
-        if (!byLayer.has(s.layer)) byLayer.set(s.layer, []);
-        byLayer.get(s.layer)!.push(s);
-      }
-
-      console.log(`\n  ${purple}Suggestions (based on your project):${r}`);
-      for (const [layer, layerSuggestions] of byLayer) {
-        for (const s of layerSuggestions) {
-          // 6 (indent + icon + space) + 14 (layer) + 1 (space) + 20 (name) + 1 (space) = 42 chars before description
-          console.log(`    \x1b[33m?\x1b[0m ${layer.padEnd(14)} ${s.name.padEnd(20)} \x1b[2m${s.description}\x1b[0m`);
-          console.log(`${''.padEnd(42)}\x1b[36m${s.url}\x1b[0m`);
-        }
-      }
+    // Open the best-available report in the browser
+    if (opts.open !== false) {
+      openInBrowser(publicUrl ?? reportPath);
     }
 
-    // Knowledge base
-    const kb = scanResult.knowledgeBase;
-    if (kb.length > 0) {
-      const totalKbSize = kb.reduce((s, f) => s + f.size, 0);
-      console.log(`\n  ${purple}Knowledge base: ${kb.length} files (${(totalKbSize / 1024).toFixed(1)}K) the model can see${r}`);
-      for (const file of kb) {
-        const sizeStr = file.size >= 1024
-          ? `${(file.size / 1024).toFixed(1)}K`
-          : `${file.size}B`;
-        console.log(`    \x1b[2m•\x1b[0m ${file.relativePath.padEnd(44)} \x1b[2m${file.description.padEnd(28)} ${sizeStr.padStart(6)}\x1b[0m`);
-      }
+    if (publicUrl) {
+      console.log(`  ${purple}${bold}View & share your report:${r}`);
+      console.log(`  ${bold}${publicUrl}${r}`);
+      console.log(`  ${dim}Public, no login required · Expires in 30 days${r}\n`);
+      console.log(`  ${dim}Local copy: file://${reportPath}${r}\n`);
     } else {
-      console.log(`\n  ${purple}Knowledge base: no project docs found (README.md, package.json, etc.)${r}`);
+      console.log(`  ${purple}${bold}View your report:${r}`);
+      console.log(`  ${dim}file://${reportPath}${r}\n`);
     }
-
-    console.log(`\n  ${purple}Next steps:${r}\n`);
-    console.log('    \x1b[1mstaipler watch\x1b[0m');
-    console.log('      Live terminal dashboard that updates your empowerment score');
-    console.log('      every time you edit an instruction file. Like jest --watch');
-    console.log('      for your AI context. Press \'o\' to optimize, \'i\' to inject.\n');
-    if (missing.length > 0) {
-      console.log('    \x1b[1mstaipler optimize\x1b[0m');
-      console.log('      AI reads your project and generates missing instruction');
-      console.log('      layers — identity, constraints, context, policies, and more.');
-      console.log('      Each layer is a markdown file you can review and edit.\n');
-    }
-    console.log('    \x1b[1mstaipler ci --min-score 70\x1b[0m');
-    console.log('      Add to your CI/CD pipeline or pre-commit hooks. Fails the');
-    console.log('      build if your empowerment score drops below your threshold.\n');
-
-    console.log('    \x1b[1mstaipler memory\x1b[0m');
-    console.log('      Inspect your agent\'s memory — every node, link, and cluster.');
-    console.log('      See what your agent knows, how it\'s organized, and what\'s');
-    console.log('      missing. The full picture in your terminal.\n');
-
-    console.log('    \x1b[1mstaipler init --proof\x1b[0m');
-    console.log('      Run a blind A/B test on your project — AI synthesizes 3');
-    console.log('      scenarios, tests your agent before and after optimization,');
-    console.log('      and shows what changed in plain English. ~90 seconds.\n');
 
     // Run quick proof only if explicitly requested with --proof
     if (opts.proof && process.stdin.isTTY) {

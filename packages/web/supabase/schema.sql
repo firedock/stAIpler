@@ -144,3 +144,36 @@ create trigger projects_updated_at
 create trigger data_sources_updated_at
   before update on data_sources
   for each row execute function update_updated_at();
+
+-- Public reports — anonymous, shareable snapshots of init reports
+-- Anyone with a slug URL can view without registering.
+create table if not exists public_reports (
+  id uuid default gen_random_uuid() primary key,
+  slug text unique not null,
+  project_name text not null,
+  html text not null,
+  score integer default 0,
+  grade text default 'F',
+  present_layers integer default 0,
+  missing_layers integer default 0,
+  view_count integer default 0,
+  created_at timestamptz default now(),
+  expires_at timestamptz default (now() + interval '30 days'),
+  created_by_ip text
+);
+
+create index if not exists public_reports_slug_idx on public_reports(slug);
+create index if not exists public_reports_expires_at_idx on public_reports(expires_at);
+
+alter table public_reports enable row level security;
+
+-- Anyone (even anonymous) can read public reports
+create policy "public read" on public_reports for select using (
+  expires_at > now()
+);
+
+-- Anyone can insert (the endpoint validates and rate-limits)
+create policy "public insert" on public_reports for insert with check (true);
+
+-- Allow incrementing view_count for public reports
+create policy "public update view count" on public_reports for update using (true) with check (true);
