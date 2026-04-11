@@ -1,5 +1,7 @@
 -- stAIpler database schema
--- Run this in your Supabase SQL editor to set up the tables
+-- Run this in your Supabase SQL editor to set up the tables.
+-- Safe to re-run — all tables use IF NOT EXISTS and all policies are dropped
+-- before recreation so the file is idempotent.
 
 -- Projects
 create table if not exists projects (
@@ -14,6 +16,11 @@ create table if not exists projects (
 );
 
 alter table projects enable row level security;
+
+drop policy if exists "Users can view own projects" on projects;
+drop policy if exists "Users can create projects" on projects;
+drop policy if exists "Users can update own projects" on projects;
+drop policy if exists "Users can delete own projects" on projects;
 
 create policy "Users can view own projects"
   on projects for select using (auth.uid() = user_id);
@@ -40,6 +47,9 @@ create table if not exists snapshots (
 
 alter table snapshots enable row level security;
 
+drop policy if exists "Users can view own snapshots" on snapshots;
+drop policy if exists "Users can create snapshots" on snapshots;
+
 create policy "Users can view own snapshots"
   on snapshots for select using (
     project_id in (select id from projects where user_id = auth.uid())
@@ -64,6 +74,9 @@ create table if not exists project_files (
 );
 
 alter table project_files enable row level security;
+
+drop policy if exists "Users can view own project files" on project_files;
+drop policy if exists "Users can manage own project files" on project_files;
 
 create policy "Users can view own project files"
   on project_files for select using (
@@ -94,6 +107,9 @@ create table if not exists data_sources (
 
 alter table data_sources enable row level security;
 
+drop policy if exists "Users can view own data sources" on data_sources;
+drop policy if exists "Users can manage own data sources" on data_sources;
+
 create policy "Users can view own data sources"
   on data_sources for select using (
     project_id in (select id from projects where user_id = auth.uid())
@@ -119,6 +135,9 @@ create table if not exists extracted_context (
 
 alter table extracted_context enable row level security;
 
+drop policy if exists "Users can view own extracted context" on extracted_context;
+drop policy if exists "Users can manage own extracted context" on extracted_context;
+
 create policy "Users can view own extracted context"
   on extracted_context for select using (
     project_id in (select id from projects where user_id = auth.uid())
@@ -137,10 +156,12 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists projects_updated_at on projects;
 create trigger projects_updated_at
   before update on projects
   for each row execute function update_updated_at();
 
+drop trigger if exists data_sources_updated_at on data_sources;
 create trigger data_sources_updated_at
   before update on data_sources
   for each row execute function update_updated_at();
@@ -167,13 +188,17 @@ create index if not exists public_reports_expires_at_idx on public_reports(expir
 
 alter table public_reports enable row level security;
 
--- Anyone (even anonymous) can read public reports
+drop policy if exists "public read" on public_reports;
+drop policy if exists "public insert" on public_reports;
+drop policy if exists "public update view count" on public_reports;
+
+-- Anyone (even anonymous) can read non-expired public reports
 create policy "public read" on public_reports for select using (
   expires_at > now()
 );
 
--- Anyone can insert (the endpoint validates and rate-limits)
+-- Anyone can insert (the endpoint validates and can be rate-limited)
 create policy "public insert" on public_reports for insert with check (true);
 
--- Allow incrementing view_count for public reports
+-- Allow incrementing view_count from the public viewer route
 create policy "public update view count" on public_reports for update using (true) with check (true);
