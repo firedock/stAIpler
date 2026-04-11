@@ -262,12 +262,31 @@ export function generateInitReport(data: InitReportData): string {
   .map-legend .dot-present { background: #a78bfa; box-shadow: 0 0 6px #a78bfa80; }
   .map-legend .dot-missing { background: transparent; border: 1px dashed #64748b; }
 
-  .map-node { cursor: pointer; transition: all 0.25s ease; }
-  .map-node:hover { transform: scale(1.15); }
+  .map-node { cursor: pointer; transition: stroke-width 0.2s ease, stroke 0.2s ease; transform-box: fill-box; transform-origin: center; }
+  .map-node:hover { stroke-width: 3; stroke: #fff; }
+  .map-node-group { cursor: pointer; }
   .map-cluster-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; pointer-events: none; }
   .map-cluster-count { font-size: 11px; font-weight: 600; pointer-events: none; }
   .map-link { fill: none; transition: all 0.3s ease; }
   .map-missing-circle { fill: none; stroke-dasharray: 4 3; transition: all 0.3s ease; }
+
+  /* Central agent pulse */
+  @keyframes agent-pulse-outer {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.08); }
+  }
+  @keyframes agent-pulse-inner {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  .agent-pulse-outer {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: agent-pulse-outer 4s ease-in-out infinite;
+  }
+  .agent-pulse-inner {
+    animation: agent-pulse-inner 2s ease-in-out infinite;
+  }
 
   /* ---- Detail Panel ---- */
   .detail-panel {
@@ -438,6 +457,23 @@ export function generateInitReport(data: InitReportData): string {
           <stop offset="0%" stop-color="#fff" stop-opacity="0.4"/>
           <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
         </radialGradient>
+        <radialGradient id="agent-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.5"/>
+          <stop offset="60%" stop-color="#7c3aed" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="agent-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#a78bfa"/>
+          <stop offset="50%" stop-color="#7c3aed"/>
+          <stop offset="100%" stop-color="#4f46e5"/>
+        </linearGradient>
+        <filter id="agent-glow-filter" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="8" result="blur"/>
+          <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
         ${LAYER_TYPES.map(layer => {
           const c = LAYER_COLORS[layer];
           return `
@@ -460,6 +496,45 @@ export function generateInitReport(data: InitReportData): string {
       <circle cx="500" cy="400" r="280" fill="none" stroke="rgba(167,139,250,0.04)" stroke-width="1"/>
       <circle cx="500" cy="400" r="180" fill="none" stroke="rgba(167,139,250,0.03)" stroke-width="1"/>
       <circle cx="500" cy="400" r="80" fill="none" stroke="rgba(167,139,250,0.02)" stroke-width="1"/>
+
+      <!-- Agent spoke lines — connect the AI agent to every present cluster -->
+      ${clusters.filter(c => c.status === 'present').map(c => `
+        <line x1="500" y1="400" x2="${c.x}" y2="${c.y}" stroke="#a78bfa" stroke-width="0.8" opacity="0.18" stroke-dasharray="2 4"/>
+      `).join('')}
+
+      <!-- Central AI Agent graphic -->
+      <g class="agent-center">
+        <!-- Outer pulsing glow -->
+        <circle class="agent-pulse-outer" cx="500" cy="400" r="70" fill="url(#agent-glow)"/>
+        <circle class="agent-pulse-inner" cx="500" cy="400" r="45" fill="url(#agent-glow)" opacity="0.6"/>
+
+        <!-- Hexagonal frame -->
+        <polygon
+          points="500,356 538,378 538,422 500,444 462,422 462,378"
+          fill="url(#agent-fill)"
+          stroke="#a78bfa"
+          stroke-width="1.5"
+          opacity="0.95"
+          filter="url(#agent-glow-filter)"
+        />
+
+        <!-- Inner dark core -->
+        <circle cx="500" cy="400" r="22" fill="#06060e" stroke="#c4b5fd" stroke-width="1" opacity="0.9"/>
+
+        <!-- Neural network dots inside -->
+        <circle cx="493" cy="394" r="1.5" fill="#c4b5fd"/>
+        <circle cx="507" cy="394" r="1.5" fill="#c4b5fd"/>
+        <circle cx="500" cy="400" r="2" fill="#fff"/>
+        <circle cx="493" cy="406" r="1.5" fill="#c4b5fd"/>
+        <circle cx="507" cy="406" r="1.5" fill="#c4b5fd"/>
+        <line x1="493" y1="394" x2="500" y2="400" stroke="#c4b5fd" stroke-width="0.5" opacity="0.6"/>
+        <line x1="507" y1="394" x2="500" y2="400" stroke="#c4b5fd" stroke-width="0.5" opacity="0.6"/>
+        <line x1="493" y1="406" x2="500" y2="400" stroke="#c4b5fd" stroke-width="0.5" opacity="0.6"/>
+        <line x1="507" y1="406" x2="500" y2="400" stroke="#c4b5fd" stroke-width="0.5" opacity="0.6"/>
+
+        <!-- AGENT label -->
+        <text x="500" y="472" text-anchor="middle" fill="#a78bfa" font-size="9" font-weight="700" letter-spacing="3" opacity="0.8">AGENT</text>
+      </g>
 
       <!-- Links between nodes -->
       ${links.map(link => {
