@@ -247,8 +247,9 @@ export function generateInitReport(data: InitReportData): string {
 
   /* ---- Header ---- */
   .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-  .logo { font-size: 0.75rem; letter-spacing: 0.15em; text-transform: uppercase; color: #64748b; font-weight: 600; margin-bottom: 12px; }
-  .logo .logo-accent { background: linear-gradient(135deg, #a78bfa, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
+  .logo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .logo-svg { height: 28px; width: auto; display: block; }
+  .logo-badge { font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: #a78bfa; font-weight: 700; padding: 5px 11px; border-radius: 6px; background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2); }
   h1 { font-size: 2.4rem; font-weight: 800; margin: 4px 0; letter-spacing: -0.02em; }
   .subtitle { font-size: 0.85rem; color: #64748b; }
   .header-cta { flex-shrink: 0; }
@@ -427,7 +428,22 @@ export function generateInitReport(data: InitReportData): string {
 <!-- Header -->
 <header class="header">
   <div>
-    <div class="logo">stAIpler <span class="logo-accent">Init Report</span></div>
+    <div class="logo-row">
+      <svg class="logo-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 222 68">
+        <defs>
+          <linearGradient id="report-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#4f46e5"/>
+            <stop offset="50%" style="stop-color:#7c3aed"/>
+            <stop offset="100%" style="stop-color:#a855f7"/>
+          </linearGradient>
+        </defs>
+        <text x="0" y="50" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" font-size="50" font-weight="700" fill="#e2e8f0" letter-spacing="-1">st</text>
+        <path d="M52 12 L52 48 Q52 58 62 58 L94 58 Q104 58 104 48 L104 12" fill="none" stroke="url(#report-logo-grad)" stroke-width="4" stroke-linecap="round" opacity="0.35"/>
+        <text x="78" y="48" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" font-size="38" font-weight="800" fill="url(#report-logo-grad)" text-anchor="middle" letter-spacing="1">AI</text>
+        <text x="108" y="50" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" font-size="50" font-weight="700" fill="#e2e8f0" letter-spacing="-1">pler</text>
+      </svg>
+      <span class="logo-badge">Init Report</span>
+    </div>
     <h1>${escapeHtml(projectName)}</h1>
     <div class="subtitle">${new Date().toLocaleString()}</div>
   </div>
