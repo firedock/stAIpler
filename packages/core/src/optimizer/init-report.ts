@@ -573,13 +573,19 @@ export function generateInitReport(data: InitReportData): string {
         return `<path class="map-link" d="M ${from.x} ${from.y} Q ${midX} ${midY}, ${to.x} ${to.y}" stroke="#a78bfa" stroke-width="0.8" opacity="${link.opacity}"/>`;
       }).join('')}
 
-      <!-- Cluster labels -->
+      <!-- Cluster labels — offset scales with node count so labels always sit above the topmost node -->
       ${clusters.map(cluster => {
-        const labelY = cluster.y - 38;
+        // Match the spread calculation used when positioning nodes
+        const nodeSpread = cluster.nodeCount > 1 ? Math.min(36, 18 + cluster.nodeCount * 4) : 0;
+        // Max node radius is 16, + 22px padding for font height + gap
+        const labelOffset = Math.max(38, nodeSpread + 22);
+        const countOffset = Math.max(48, nodeSpread + 32);
+        const labelY = cluster.y - labelOffset;
+        const countY = cluster.y + countOffset;
         const opacity = cluster.status === 'present' ? 0.9 : 0.4;
         return `
           <text class="map-cluster-label" x="${cluster.x}" y="${labelY}" text-anchor="middle" fill="${cluster.color}" opacity="${opacity}">${cluster.layerName}</text>
-          ${cluster.status === 'present' && cluster.nodeCount > 0 ? `<text class="map-cluster-count" x="${cluster.x}" y="${cluster.y + 48}" text-anchor="middle" fill="${cluster.color}" opacity="0.5">${cluster.nodeCount}</text>` : ''}
+          ${cluster.status === 'present' && cluster.nodeCount > 0 ? `<text class="map-cluster-count" x="${cluster.x}" y="${countY}" text-anchor="middle" fill="${cluster.color}" opacity="0.5">${cluster.nodeCount}</text>` : ''}
         `;
       }).join('')}
 
