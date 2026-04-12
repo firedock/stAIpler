@@ -112,15 +112,41 @@ export function generateInitReport(data: InitReportData): string {
     });
 
     if (isPresent && layerData) {
-      layerData.files.forEach((file, j) => {
-        const spread = Math.min(36, 18 + layerData.files.length * 4);
-        const nodeAngle = layerData.files.length > 1
-          ? (j / layerData.files.length) * 2 * Math.PI
+      // Dedupe by content fingerprint — many projects have the same file
+      // in library/core/, library/optimized/, library/support/ with
+      // identical content. Show one node per unique body, preferring
+      // optimized/ > core/ > support/ > other paths.
+      const pathScore = (p: string): number => {
+        if (p.includes('optimized/')) return 3;
+        if (p.includes('core/')) return 2;
+        if (p.includes('support/')) return 1;
+        return 0;
+      };
+      const fingerprint = (content: string) =>
+        `${content.length}:${content.slice(0, 500).replace(/\s+/g, ' ').trim()}`;
+
+      const byFingerprint = new Map<string, typeof layerData.files[0]>();
+      for (const file of layerData.files) {
+        const fp = fingerprint(file.content ?? '');
+        const existing = byFingerprint.get(fp);
+        if (!existing || pathScore(file.relativePath) > pathScore(existing.relativePath)) {
+          byFingerprint.set(fp, file);
+        }
+      }
+      const uniqueFiles = Array.from(byFingerprint.values());
+
+      // Update cluster node count to reflect unique files
+      clusters[clusters.length - 1].nodeCount = uniqueFiles.length;
+
+      uniqueFiles.forEach((file, j) => {
+        const spread = Math.min(36, 18 + uniqueFiles.length * 4);
+        const nodeAngle = uniqueFiles.length > 1
+          ? (j / uniqueFiles.length) * 2 * Math.PI
           : 0;
-        const nx = layerData.files.length > 1
+        const nx = uniqueFiles.length > 1
           ? lx + Math.cos(nodeAngle) * spread
           : lx;
-        const ny = layerData.files.length > 1
+        const ny = uniqueFiles.length > 1
           ? ly + Math.sin(nodeAngle) * spread
           : ly;
 
@@ -265,8 +291,8 @@ export function generateInitReport(data: InitReportData): string {
   .map-node { cursor: pointer; transition: stroke-width 0.2s ease, stroke 0.2s ease; transform-box: fill-box; transform-origin: center; }
   .map-node:hover { stroke-width: 3; stroke: #fff; }
   .map-node-group { cursor: pointer; }
-  .map-cluster-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; pointer-events: none; }
-  .map-cluster-count { font-size: 11px; font-weight: 600; pointer-events: none; }
+  .map-cluster-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; pointer-events: none; paint-order: stroke; stroke: #06060e; stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round; }
+  .map-cluster-count { font-size: 11px; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: #06060e; stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round; }
   .map-link { fill: none; transition: all 0.3s ease; }
   .map-missing-circle { fill: none; stroke-dasharray: 4 3; transition: all 0.3s ease; }
 
