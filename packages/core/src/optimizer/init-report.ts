@@ -246,11 +246,10 @@ export function generateInitReport(data: InitReportData): string {
   .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px 80px; }
 
   /* ---- Header ---- */
-  .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-  .logo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-  .logo-svg { height: 28px; width: auto; display: block; }
-  .logo-badge { font-size: 0.68rem; letter-spacing: 0.18em; text-transform: uppercase; color: #a78bfa; font-weight: 700; padding: 5px 11px; border-radius: 6px; background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2); }
-  h1 { font-size: 2.4rem; font-weight: 800; margin: 4px 0; letter-spacing: -0.02em; }
+  .header { display: flex; align-items: center; justify-content: space-between; gap: 32px; margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .logo-row { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; }
+  .logo-svg { height: 52px; width: auto; display: block; }
+  .logo-badge { font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: #a78bfa; font-weight: 700; padding: 6px 13px; border-radius: 6px; background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2); }
   .subtitle { font-size: 0.85rem; color: #64748b; }
   .header-cta { flex-shrink: 0; }
   .header-cta a { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.2); border-radius: 10px; color: #c4b5fd; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: all 0.2s; }
@@ -292,6 +291,31 @@ export function generateInitReport(data: InitReportData): string {
   .map-node { cursor: pointer; transition: stroke-width 0.2s ease, stroke 0.2s ease; transform-box: fill-box; transform-origin: center; }
   .map-node:hover { stroke-width: 3; stroke: #fff; }
   .map-node-group { cursor: pointer; }
+
+  /* ---- Hover tooltip ---- */
+  .node-tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: #0a0a18;
+    border: 1px solid rgba(167,139,250,0.25);
+    border-radius: 10px;
+    padding: 12px 14px;
+    max-width: 320px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(167,139,250,0.08);
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    z-index: 90;
+    font-size: 0.8rem;
+  }
+  .node-tooltip.visible { opacity: 1; transform: translateY(0); }
+  .node-tooltip-layer { display: inline-block; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; margin-bottom: 8px; }
+  .node-tooltip-title { font-size: 0.85rem; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; word-break: break-word; }
+  .node-tooltip-path { font-family: 'SF Mono', Monaco, monospace; font-size: 0.65rem; color: #64748b; margin-bottom: 8px; word-break: break-all; }
+  .node-tooltip-preview { font-family: 'SF Mono', Monaco, monospace; font-size: 0.7rem; color: #94a3b8; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow: hidden; position: relative; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); }
+  .node-tooltip-preview::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 30px; background: linear-gradient(transparent, #0a0a18); pointer-events: none; }
+  .node-tooltip-hint { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.65rem; color: #475569; display: flex; justify-content: space-between; }
+  .node-tooltip-meta { color: #475569; }
   .map-cluster-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; pointer-events: none; paint-order: stroke; stroke: #06060e; stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round; }
   .map-cluster-count { font-size: 11px; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: #06060e; stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round; }
   .map-link { fill: none; transition: all 0.3s ease; }
@@ -444,8 +468,7 @@ export function generateInitReport(data: InitReportData): string {
       </svg>
       <span class="logo-badge">Init Report</span>
     </div>
-    <h1>${escapeHtml(projectName)}</h1>
-    <div class="subtitle">${new Date().toLocaleString()}</div>
+    <div class="subtitle">${escapeHtml(projectName)} · ${new Date().toLocaleString()}</div>
   </div>
   <div class="header-cta">
     <a href="https://staipler.com" target="_blank" rel="noopener noreferrer">
@@ -794,6 +817,9 @@ ${scanResult.knowledgeBase.length > 0 ? `
 
 </div>
 
+<!-- Hover Tooltip (hidden until cursor is over a node) -->
+<div class="node-tooltip" id="node-tooltip" aria-hidden="true"></div>
+
 <!-- Detail Panel (hidden until a node is clicked) -->
 <div class="backdrop" id="backdrop"></div>
 <aside class="detail-panel" id="detail-panel" aria-hidden="true">
@@ -902,14 +928,84 @@ ${scanResult.knowledgeBase.length > 0 ? `
     if (e.key === 'Escape') closeDetail();
   });
 
-  // Wire up node clicks
+  // Hover tooltip
+  const tooltip = document.getElementById('node-tooltip');
+
+  function showTooltip(node, clientX, clientY) {
+    if (!tooltip) return;
+    const preview = (node.content || '(empty)').trim().slice(0, 240);
+    const confPct = Math.round(node.confidence * 100);
+    const sizeStr = formatSize(node.size);
+
+    let html = '<div class="node-tooltip-layer" style="background:' + node.color + '20;color:' + node.color + '">' + node.layerName + '</div>';
+    html += '<div class="node-tooltip-title">' + escapeHtml(node.title) + '</div>';
+    html += '<div class="node-tooltip-path">' + escapeHtml(node.sourcePath) + '</div>';
+    html += '<div class="node-tooltip-preview">' + escapeHtml(preview) + '</div>';
+    html += '<div class="node-tooltip-hint">';
+    html += '<span>Click to inspect →</span>';
+    html += '<span class="node-tooltip-meta">' + sizeStr + ' · ' + confPct + '%</span>';
+    html += '</div>';
+    tooltip.innerHTML = html;
+
+    // Position after render so we can measure
+    tooltip.classList.add('visible');
+    const rect = tooltip.getBoundingClientRect();
+    const padding = 14;
+    let left = clientX + 18;
+    let top = clientY + 18;
+
+    // Keep within viewport
+    if (left + rect.width + padding > window.innerWidth) {
+      left = clientX - rect.width - 18;
+    }
+    if (top + rect.height + padding > window.innerHeight) {
+      top = clientY - rect.height - 18;
+    }
+    if (left < padding) left = padding;
+    if (top < padding) top = padding;
+
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+    tooltip.setAttribute('aria-hidden', 'false');
+  }
+
+  function hideTooltip() {
+    if (!tooltip) return;
+    tooltip.classList.remove('visible');
+    tooltip.setAttribute('aria-hidden', 'true');
+  }
+
+  // Wire up node clicks + hover
   document.querySelectorAll('.map-node-group').forEach(group => {
     group.style.cursor = 'pointer';
+    const nodeId = group.getAttribute('data-node-id');
+    const node = NODES.find(n => n.id === nodeId);
+
     group.addEventListener('click', function() {
-      const nodeId = group.getAttribute('data-node-id');
-      const node = NODES.find(n => n.id === nodeId);
+      hideTooltip();
       if (node) openDetail(node);
     });
+
+    if (node) {
+      group.addEventListener('mouseenter', function(e) {
+        showTooltip(node, e.clientX, e.clientY);
+      });
+      group.addEventListener('mousemove', function(e) {
+        if (tooltip && tooltip.classList.contains('visible')) {
+          const rect = tooltip.getBoundingClientRect();
+          const padding = 14;
+          let left = e.clientX + 18;
+          let top = e.clientY + 18;
+          if (left + rect.width + padding > window.innerWidth) left = e.clientX - rect.width - 18;
+          if (top + rect.height + padding > window.innerHeight) top = e.clientY - rect.height - 18;
+          if (left < padding) left = padding;
+          if (top < padding) top = padding;
+          tooltip.style.left = left + 'px';
+          tooltip.style.top = top + 'px';
+        }
+      });
+      group.addEventListener('mouseleave', hideTooltip);
+    }
   });
 
   // Wire up missing cluster clicks
