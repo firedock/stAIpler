@@ -21,5 +21,23 @@ export default async function ChatPage({
 
   if (!project) notFound();
 
-  return <ChatWithDemo projectId={id} projectName={project.name} isDemo={demo === '1'} />;
+  // Fetch agent config if it exists (for persisted provider/key)
+  const { data: agentConfig } = await supabase
+    .from('agent_configs')
+    .select('provider, model, display_name')
+    .eq('project_id', id)
+    .single();
+
+  return (
+    <ChatWithDemo
+      projectId={id}
+      projectName={agentConfig?.display_name || project.name}
+      isDemo={demo === '1'}
+      agentConfig={agentConfig ? {
+        provider: agentConfig.provider,
+        model: agentConfig.model,
+        displayName: agentConfig.display_name,
+      } : undefined}
+    />
+  );
 }

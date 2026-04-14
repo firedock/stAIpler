@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Chat } from '@/components/chat';
+import { Chat, type AgentConfig } from '@/components/chat';
 
 interface ChatWithDemoProps {
   projectId: string;
   projectName: string;
   isDemo: boolean;
+  agentConfig?: AgentConfig;
 }
 
 /**
@@ -14,7 +15,7 @@ interface ChatWithDemoProps {
  * and passes it to the Chat component. sessionStorage cannot be read
  * in server components, so this wrapper handles the client-side read.
  */
-export function ChatWithDemo({ projectId, projectName, isDemo }: ChatWithDemoProps) {
+export function ChatWithDemo({ projectId, projectName, isDemo, agentConfig }: ChatWithDemoProps) {
   const [initialPrompt, setInitialPrompt] = useState<string | undefined>(undefined);
   const [ready, setReady] = useState(!isDemo);
 
@@ -36,5 +37,5 @@ export function ChatWithDemo({ projectId, projectName, isDemo }: ChatWithDemoPro
 
   if (!ready) return null;
 
-  return <Chat projectId={projectId} projectName={projectName} initialPrompt={initialPrompt} />;
+  return <Chat projectId={projectId} projectName={projectName} initialPrompt={initialPrompt} agentConfig={agentConfig} />;
 }

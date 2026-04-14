@@ -148,6 +148,55 @@ export type {
 export { loadConfig, DEFAULT_CONFIG } from './config.js';
 export type { StaiplerConfig } from './config.js';
 
+// Evidence Pipeline
+export {
+  normalizeToSourceDocument,
+  normalizeToSourceDocuments,
+  extractLayerCandidates,
+  extractFastPath,
+  buildExtractionPrompt,
+  parseExtractionResponse,
+  organizeCandidates,
+  computeReadinessScore,
+  compileBundle,
+  runPipeline,
+  buildReviewItems,
+  applyReviewDecisions,
+  createHandoffPacket,
+  reinforceHandoff,
+  applyDecay,
+  getActiveHandoffs,
+  calculateDecay,
+  formatHandoffsForPrompt,
+  findSimilarHandoff,
+} from './pipeline/index.js';
+export type {
+  SourceDocument,
+  SourceDocumentMetadata,
+  LayerCandidate,
+  CandidateProvenance,
+  ResolvedLayer,
+  ConflictRecord,
+  CompiledInstructionBundle,
+  BundleSection,
+  SectionProvenance,
+  BundleMetadata,
+  PipelineResult,
+  RawInput,
+  IngestOptions,
+  ExtractionResponse,
+  LLMFunction,
+  ReviewItem,
+  ReviewOption,
+  ReviewDecision,
+  HandoffPacket,
+  HandoffClassification,
+  HandoffProvenance,
+  EmitHandoffInput,
+  PipelineEvent,
+  TransformationLog,
+} from './pipeline/index.js';
+
 // Errors
 export {
   StaiplerError,

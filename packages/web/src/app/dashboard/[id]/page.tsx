@@ -32,12 +32,43 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
     .eq('project_id', id)
     .order('created_at');
 
+  const { data: agentConfig } = await supabase
+    .from('agent_configs')
+    .select('id')
+    .eq('project_id', id)
+    .single();
+
+  // Pipeline data (new evidence pipeline tables)
+  const { data: sourceDocuments } = await supabase
+    .from('source_documents')
+    .select('*')
+    .eq('project_id', id)
+    .order('created_at');
+
+  const { data: layerCandidates } = await supabase
+    .from('layer_candidates')
+    .select('*')
+    .eq('project_id', id)
+    .eq('status', 'active')
+    .order('confidence', { ascending: false });
+
+  const { data: latestBundle } = await supabase
+    .from('compiled_bundles')
+    .select('*')
+    .eq('project_id', id)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
   return (
     <ProjectDashboard
       project={project}
       snapshots={snapshots ?? []}
       files={files ?? []}
       dataSources={dataSources ?? []}
+      hasAgentConfig={!!agentConfig}
+      sourceDocuments={sourceDocuments ?? []}
+      layerCandidates={layerCandidates ?? []}
+      compiledBundle={latestBundle?.[0] ?? null}
     />
   );
 }

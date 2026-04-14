@@ -256,8 +256,29 @@ function LayerModal({ layer, onClose }: { layer: LayerData; onClose: () => void 
   );
 }
 
-export function LayerGrid({ layers }: { layers: LayerData[] }) {
+function authorityBadge(status: string | undefined) {
+  switch (status) {
+    case 'source-grounded':
+      return <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium">From your docs</span>;
+    case 'ai-generated':
+      return <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-medium">AI-generated</span>;
+    case 'mixed':
+      return <span className="text-[8px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium">Mixed</span>;
+    default:
+      return null;
+  }
+}
+
+export function LayerGrid({ layers, bundleSections }: { layers: LayerData[]; bundleSections?: { layer: string; status: string }[] }) {
   const [selectedLayer, setSelectedLayer] = useState<LayerData | null>(null);
+
+  // Build a map of layer → authority status from the compiled bundle
+  const authorityMap = new Map<string, string>();
+  if (bundleSections) {
+    for (const section of bundleSections) {
+      authorityMap.set(section.layer, section.status);
+    }
+  }
 
   return (
     <>
@@ -265,6 +286,7 @@ export function LayerGrid({ layers }: { layers: LayerData[] }) {
         {layers.map(layer => {
           const color = scoreColor(layer.score);
           const importance = IMPORTANCE[layer.kind] ?? 'optional';
+          const authority = authorityMap.get(layer.kind);
 
           return (
             <button
@@ -276,6 +298,7 @@ export function LayerGrid({ layers }: { layers: LayerData[] }) {
               <div className="text-[10px] text-slate-600 absolute top-2.5 right-3">{importance}</div>
               <div className="text-sm font-semibold capitalize mt-1 mb-1 group-hover:text-purple-300 transition">{layer.kind}</div>
               <div className="text-2xl font-bold" style={{ color }}>{layer.score}</div>
+              {authority && <div className="mt-1">{authorityBadge(authority)}</div>}
               <div className="mt-2 h-1 bg-white/[0.04] rounded-full overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${layer.score}%`, background: color }} />
               </div>

@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { decrypt } from '@/lib/crypto';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { execSync, spawn } from 'child_process';
 import { writeFileSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
+import { applyDecay, formatHandoffsForPrompt } from '@staipler/core';
+import type { HandoffPacket } from '@staipler/core';
+
+const HOSTED_MONTHLY_TOKEN_CAP = 50_000;
 
 const CANONICAL_ORDER = [
   'constraints', 'context', 'evals', 'examples',
@@ -105,17 +110,11 @@ async function streamClaudeCli(
 
   const args = ['-p', '--model', 'sonnet'];
   if (systemPrompt) {
-    const sysFile = resolve(tmpDir, `sys-${Date.now()}.txt`);
-    writeFileSync(sysFile, systemPrompt);
-    args.push('--system-prompt', systemPrompt.length > 10000
-      ? `$(cat '${sysFile}')`
-      : systemPrompt
-    );
+    args.push('--system-prompt', systemPrompt);
   }
 
   return new Promise<void>((resolve, reject) => {
     const proc = spawn('claude', args, {
-      shell: '/bin/bash',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -213,7 +212,7 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { projectId, messages, mode, provider, model, apiKey } = await request.json();
+    const { projectId, messages, mode, provider, model, apiKey, usePersistedKey } = await request.json();
 
     // Resolve provider: 'claude-cli' | 'anthropic' | 'openai'
     const resolvedProvider = provider ?? 'claude-cli';
@@ -234,13 +233,88 @@ export async function POST(request: Request) {
         const compiled = compileSystemPromptWithAttribution(files);
         systemPrompt = compiled.prompt;
         attribution = compiled.attribution;
+
+        // Inject active handoffs below source knowledge
+        const { data: handoffRows } = await supabase
+          .from('session_handoffs')
+          .select('*')
+          .eq('project_id', projectId)
+          .eq('status', 'active');
+
+        if (handoffRows && handoffRows.length > 0) {
+          const now = new Date();
+          const handoffs: HandoffPacket[] = handoffRows.map(row => applyDecay({
+            id: row.id,
+            projectId: row.project_id,
+            classification: row.classification,
+            content: row.content,
+            initialConfidence: row.initial_confidence,
+            effectiveConfidence: row.effective_confidence,
+            provenance: row.provenance,
+            reinforcementCount: row.reinforcement_count,
+            createdAt: row.created_at,
+            lastReinforcedAt: row.last_reinforced_at,
+            status: row.status,
+          }, now));
+
+          const handoffSection = formatHandoffsForPrompt(handoffs);
+          if (handoffSection) {
+            systemPrompt = systemPrompt + '\n\n' + handoffSection;
+          }
+        }
       }
     }
 
-    // Resolve API key: passed from client > env var > none
-    const resolvedKey = apiKey ??
-      (resolvedProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY :
-       resolvedProvider === 'openai' ? process.env.OPENAI_API_KEY : null);
+    // Resolve API key: client-provided > persisted agent config > env var > hosted > none
+    let resolvedKey = apiKey ?? null;
+    let isHosted = false;
+
+    if (!resolvedKey && usePersistedKey) {
+      const { data: agentConfig } = await supabase
+        .from('agent_configs')
+        .select('provider, api_key_encrypted')
+        .eq('project_id', projectId)
+        .single();
+
+      if (agentConfig) {
+        if (agentConfig.provider === 'hosted') {
+          // Hosted tier: use stAIpler's own Anthropic key
+          isHosted = true;
+          resolvedKey = process.env.STAIPLER_ANTHROPIC_API_KEY ?? null;
+
+          // Check usage cap for hosted tier
+          if (resolvedKey) {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            const { data: usage } = await supabase
+              .from('usage_events')
+              .select('input_tokens, output_tokens')
+              .eq('project_id', projectId)
+              .gte('created_at', thirtyDaysAgo.toISOString());
+
+            const totalTokens = (usage ?? []).reduce((sum, u) => sum + u.input_tokens + u.output_tokens, 0);
+            if (totalTokens >= HOSTED_MONTHLY_TOKEN_CAP) {
+              return NextResponse.json({
+                error: 'You\'ve reached your free tier limit (50K tokens/month). Add your own API key in Settings to continue, or upgrade for more capacity.',
+              }, { status: 429 });
+            }
+          }
+        } else if (agentConfig.api_key_encrypted) {
+          // BYOB: decrypt persisted key
+          try {
+            resolvedKey = decrypt(agentConfig.api_key_encrypted);
+          } catch {
+            return NextResponse.json({ error: 'Failed to decrypt stored API key. Please reconfigure in Settings.' }, { status: 500 });
+          }
+        }
+      }
+    }
+
+    // Fallback to env vars
+    if (!resolvedKey) {
+      resolvedKey = resolvedProvider === 'anthropic' ? (process.env.ANTHROPIC_API_KEY ?? null) :
+                    resolvedProvider === 'openai' ? (process.env.OPENAI_API_KEY ?? null) : null;
+    }
 
     if (resolvedProvider !== 'claude-cli' && !resolvedKey) {
       return NextResponse.json({
@@ -270,6 +344,19 @@ export async function POST(request: Request) {
             default:
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `Unknown provider: ${resolvedProvider}` })}\n\n`));
               controller.close();
+          }
+
+          // Log usage for hosted tier (approximate token count)
+          if (isHosted) {
+            const inputChars = (systemPrompt.length + messages.reduce((s: number, m: any) => s + m.content.length, 0));
+            const inputTokens = Math.ceil(inputChars / 4);
+            const outputTokens = 500; // estimate; exact counts require provider callback changes
+            supabase.from('usage_events').insert({
+              project_id: projectId,
+              input_tokens: inputTokens,
+              output_tokens: outputTokens,
+              model: resolvedModel,
+            }).then(() => {}); // fire and forget
           }
         } catch (err) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: err instanceof Error ? err.message : 'Stream error' })}\n\n`));

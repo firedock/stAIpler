@@ -1,18 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-
-const CANONICAL_ORDER = [
-  'constraints', 'context', 'evals', 'examples',
-  'goals', 'identity', 'memory', 'policies',
-  'prompts', 'skills', 'style', 'tools',
-];
-
-const KIND_TITLES: Record<string, string> = {
-  identity: 'Identity', goals: 'Goals', context: 'Context',
-  policies: 'Policies', constraints: 'Constraints', skills: 'Skills',
-  style: 'Style', examples: 'Examples', tools: 'Tools',
-  prompts: 'Prompts', evals: 'Evals', memory: 'Memory',
-};
+import { getLatestBundle } from '@/lib/pipeline/store';
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +10,24 @@ export async function POST(request: Request) {
 
     const { projectId } = await request.json();
 
-    // Fetch all project files
+    // Try to read from cached compiled bundle first
+    const bundle = await getLatestBundle(supabase, projectId);
+
+    if (bundle) {
+      return NextResponse.json({
+        systemPrompt: bundle.systemPrompt,
+        layers: bundle.sections.map(s => s.layer),
+        fileCount: bundle.metadata.layerCandidateCount,
+        tokenEstimate: bundle.metadata.tokenEstimate,
+        // New fields from the evidence pipeline
+        sections: bundle.sections,
+        provenance: bundle.provenance,
+        conflicts: bundle.conflicts,
+        gaps: bundle.gaps,
+      });
+    }
+
+    // Fallback: read from project_files (backward compatibility)
     const { data: files } = await supabase
       .from('project_files')
       .select('*')
@@ -33,7 +38,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No files imported yet' }, { status: 400 });
     }
 
-    // Group by kind, pick best file per kind (highest confidence)
+    const CANONICAL_ORDER = [
+      'constraints', 'context', 'evals', 'examples',
+      'goals', 'identity', 'memory', 'policies',
+      'prompts', 'skills', 'style', 'tools',
+    ];
+
+    const KIND_TITLES: Record<string, string> = {
+      identity: 'Identity', goals: 'Goals', context: 'Context',
+      policies: 'Policies', constraints: 'Constraints', skills: 'Skills',
+      style: 'Style', examples: 'Examples', tools: 'Tools',
+      prompts: 'Prompts', evals: 'Evals', memory: 'Memory',
+    };
+
     const byKind: Record<string, typeof files[0][]> = {};
     for (const file of files) {
       if (!file.inferred_kind) continue;
@@ -41,7 +58,6 @@ export async function POST(request: Request) {
       byKind[file.inferred_kind].push(file);
     }
 
-    // Compile in canonical order
     const sections: string[] = [];
     const includedKinds: string[] = [];
 
@@ -52,9 +68,8 @@ export async function POST(request: Request) {
       includedKinds.push(kind);
       const title = KIND_TITLES[kind] ?? kind;
 
-      // Merge strategy: identity and style = last-wins (highest confidence), others = concatenate
       if (kind === 'identity' || kind === 'style') {
-        const best = kindFiles[0]; // already sorted by confidence desc
+        const best = kindFiles[0];
         sections.push(`## ${title}\n\n${best.content}`);
       } else {
         const combined = kindFiles.map(f => f.content).join('\n\n');

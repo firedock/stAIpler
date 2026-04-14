@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ProjectCard } from '@/components/project-card';
 import { EmptyState } from '@/components/empty-state';
@@ -9,6 +10,11 @@ export default async function DashboardPage() {
     .from('projects')
     .select('*, snapshots(count)')
     .order('updated_at', { ascending: false });
+
+  // First-time users: send them through the guided setup wizard
+  if (!projects || projects.length === 0) {
+    redirect('/dashboard/setup');
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
@@ -25,15 +31,11 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {!projects || projects.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project: any) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {projects.map((project: any) => (
+          <ProjectCard key={project.id} project={project} />
+        ))}
+      </div>
     </div>
   );
 }

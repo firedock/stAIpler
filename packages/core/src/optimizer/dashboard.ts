@@ -86,6 +86,7 @@ export function generateDashboard(data: DashboardData): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>stAIpler Dashboard — ${escapeHtml(projectName)}</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 68 72'%3E%3Cdefs%3E%3ClinearGradient id='mg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%234f46e5'/%3E%3Cstop offset='50%25' stop-color='%237c3aed'/%3E%3Cstop offset='100%25' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M8 14 L8 52 Q8 68 22 68 L46 68 Q60 68 60 52 L60 14' fill='none' stroke='url(%23mg)' stroke-width='6' stroke-linecap='round' opacity='0.35'/%3E%3Ctext x='34' y='56' font-family='Inter,Helvetica Neue,Arial,sans-serif' font-size='40' font-weight='800' fill='url(%23mg)' text-anchor='middle' letter-spacing='1'%3EAI%3C/text%3E%3C/svg%3E">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #06060e; color: #e2e8f0; min-height: 100vh; }

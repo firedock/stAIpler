@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { getLatestBundle } from '@/lib/pipeline/store';
 
 const CANONICAL_ORDER = [
   'constraints', 'context', 'evals', 'examples',
@@ -38,31 +39,64 @@ export async function POST(request: Request) {
 
     const { projectId } = await request.json();
 
-    // Get existing files
-    const { data: files } = await supabase
-      .from('project_files')
-      .select('*')
-      .eq('project_id', projectId);
+    // Determine which layers need generation
+    // Prefer the evidence pipeline's bundle (gaps field) over project_files
+    const bundle = await getLatestBundle(supabase, projectId);
+    let missingLayers: string[];
 
-    const existingKinds = new Set((files ?? []).filter(f => f.inferred_kind).map(f => f.inferred_kind));
+    if (bundle) {
+      // Use gaps from the compiled bundle — these are layers with no source-grounded content
+      missingLayers = bundle.gaps.filter(kind => {
+        const imp = IMPORTANCE[kind];
+        return imp === 'critical' || imp === 'recommended';
+      });
+    } else {
+      // Fallback: check project_files directly
+      const { data: files } = await supabase
+        .from('project_files')
+        .select('inferred_kind')
+        .eq('project_id', projectId);
 
-    // Find missing critical and recommended layers
-    const missingLayers = CANONICAL_ORDER.filter(kind => {
-      if (existingKinds.has(kind)) return false;
-      const imp = IMPORTANCE[kind];
-      return imp === 'critical' || imp === 'recommended';
-    });
+      const existingKinds = new Set((files ?? []).filter(f => f.inferred_kind).map(f => f.inferred_kind));
+      missingLayers = CANONICAL_ORDER.filter(kind => {
+        if (existingKinds.has(kind)) return false;
+        const imp = IMPORTANCE[kind];
+        return imp === 'critical' || imp === 'recommended';
+      });
+    }
 
     if (missingLayers.length === 0) {
       return NextResponse.json({ message: 'All critical and recommended layers are present!', generated: [] });
     }
 
-    // Build context from existing files for the AI
-    const existingContext = (files ?? [])
-      .filter(f => f.content)
-      .slice(0, 5)
-      .map(f => `--- ${f.file_name} (${f.inferred_kind ?? 'unknown'}) ---\n${(f.content ?? '').slice(0, 500)}`)
-      .join('\n\n');
+    // Build context from existing content
+    // Prefer layer_candidates for richer context, fall back to project_files
+    let existingContext = '';
+
+    const { data: candidates } = await supabase
+      .from('layer_candidates')
+      .select('layer, content, confidence')
+      .eq('project_id', projectId)
+      .eq('status', 'active')
+      .order('confidence', { ascending: false })
+      .limit(10);
+
+    if (candidates && candidates.length > 0) {
+      existingContext = candidates
+        .map(c => `--- ${c.layer} (confidence: ${c.confidence}) ---\n${(c.content ?? '').slice(0, 500)}`)
+        .join('\n\n');
+    } else {
+      const { data: files } = await supabase
+        .from('project_files')
+        .select('file_name, inferred_kind, content')
+        .eq('project_id', projectId)
+        .limit(5);
+
+      existingContext = (files ?? [])
+        .filter(f => f.content)
+        .map(f => `--- ${f.file_name} (${f.inferred_kind ?? 'unknown'}) ---\n${(f.content ?? '').slice(0, 500)}`)
+        .join('\n\n');
+    }
 
     // Get project info
     const { data: project } = await supabase
@@ -73,7 +107,7 @@ export async function POST(request: Request) {
 
     const generated: { kind: string; content: string }[] = [];
 
-    // Generate each missing layer using Claude CLI
+    // Generate each missing layer
     for (const kind of missingLayers) {
       const { execSync } = await import('child_process');
       const { writeFileSync, mkdirSync } = await import('fs');
@@ -113,7 +147,6 @@ Generate the ${kind} layer now:`;
           stdio: ['pipe', 'pipe', 'pipe'],
         }).trim();
 
-        // Strip code fences if present
         let content = result;
         if (content.startsWith('```')) {
           content = content.replace(/^```(?:markdown|md)?\n?/, '').replace(/\n?```$/, '').trim();
@@ -121,7 +154,7 @@ Generate the ${kind} layer now:`;
 
         generated.push({ kind, content });
 
-        // Save to project_files
+        // Save as AI-generated — explicitly marked as lowest authority tier
         await supabase.from('project_files').insert({
           project_id: projectId,
           file_name: `${kind.toUpperCase()}.md`,
@@ -133,7 +166,6 @@ Generate the ${kind} layer now:`;
           content,
         });
       } catch (err) {
-        // Skip this layer if generation fails
         console.error(`Failed to generate ${kind}:`, err);
       } finally {
         try { execSync(`rm -f '${promptFile}'`); } catch {}

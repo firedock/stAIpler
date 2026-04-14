@@ -1,0 +1,26 @@
+{
+  "projectName": ".staipler",
+  "snapshots": [
+    {
+      "timestamp": "2026-04-09T18:09:46.718Z",
+      "readinessScore": 0,
+      "grade": "F",
+      "layerScores": {
+        "constraints": 0,
+        "context": 0,
+        "evals": 0,
+        "examples": 0,
+        "goals": 0,
+        "identity": 0,
+        "memory": 0,
+        "policies": 0,
+        "prompts": 0,
+        "skills": 0,
+        "style": 0,
+        "tools": 0
+      },
+      "action": "scan",
+      "notes": "Initial scan via staipler init"
+    }
+  ]
+}

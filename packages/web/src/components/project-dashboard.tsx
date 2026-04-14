@@ -10,6 +10,9 @@ import { DataSourcesPanel } from '@/components/data-sources-panel';
 import { Onboarding } from '@/components/onboarding';
 import { QuickProofCard } from '@/components/quick-proof-card';
 import { MemoryMap } from '@/components/memory-map';
+import { DeployPanel } from '@/components/deploy-panel';
+import { KnowledgeJourney } from '@/components/knowledge-journey';
+import { HandoffsPanel } from '@/components/handoffs-panel';
 
 const LAYER_TYPES = [
   'constraints', 'context', 'evals', 'examples',
@@ -22,12 +25,17 @@ interface ProjectDashboardProps {
   snapshots: any[];
   files: any[];
   dataSources: any[];
+  hasAgentConfig?: boolean;
+  sourceDocuments?: any[];
+  layerCandidates?: any[];
+  compiledBundle?: any;
 }
 
-export function ProjectDashboard({ project, snapshots, files, dataSources }: ProjectDashboardProps) {
+export function ProjectDashboard({ project, snapshots, files, dataSources, hasAgentConfig, sourceDocuments = [], layerCandidates = [], compiledBundle }: ProjectDashboardProps) {
   const isFirstVisit = snapshots.length === 0 && files.length === 0;
   const [showOnboarding, setShowOnboarding] = useState(isFirstVisit);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [knowledgeView, setKnowledgeView] = useState<'journey' | 'files'>('journey');
   const [optimizing, setOptimizing] = useState(false);
   const [optimizeResult, setOptimizeResult] = useState<{ generated: string[]; readinessScore: number; grade: string } | null>(null);
   const router = useRouter();
@@ -152,9 +160,32 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
             }
           </p>
           <div className="flex flex-wrap gap-3 mb-4">
-            <div className="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-sm font-medium">{present} present</div>
-            {missing > 0 && <div className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 text-sm font-medium">{missing} missing</div>}
-            <div className="px-4 py-2 rounded-lg bg-purple-500/10 text-purple-400 text-sm font-medium">{files.length} files</div>
+            {(() => {
+              const sections = compiledBundle?.sections ?? [];
+              const fromDocs = sections.filter((s: any) => s.status === 'source-grounded').length;
+              const aiGenerated = sections.filter((s: any) => s.status === 'ai-generated').length;
+              const mixed = sections.filter((s: any) => s.status === 'mixed').length;
+              const hasBundle = sections.length > 0;
+
+              if (hasBundle) {
+                return (
+                  <>
+                    {fromDocs > 0 && <div className="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-sm font-medium">{fromDocs} from your docs</div>}
+                    {aiGenerated > 0 && <div className="px-4 py-2 rounded-lg bg-amber-500/10 text-amber-400 text-sm font-medium">{aiGenerated} AI-generated</div>}
+                    {mixed > 0 && <div className="px-4 py-2 rounded-lg bg-blue-500/10 text-blue-400 text-sm font-medium">{mixed} mixed</div>}
+                    {missing > 0 && <div className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 text-sm font-medium">{missing} missing</div>}
+                  </>
+                );
+              }
+
+              return (
+                <>
+                  <div className="px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-sm font-medium">{present} present</div>
+                  {missing > 0 && <div className="px-4 py-2 rounded-lg bg-red-500/10 text-red-400 text-sm font-medium">{missing} missing</div>}
+                  <div className="px-4 py-2 rounded-lg bg-purple-500/10 text-purple-400 text-sm font-medium">{files.length} files</div>
+                </>
+              );
+            })()}
             <div className="px-4 py-2 rounded-lg bg-white/5 text-slate-400 text-sm font-medium">{snapshots.length} snapshots</div>
           </div>
           <a
@@ -177,7 +208,7 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
           <h3 className="text-lg font-semibold">Layer Coverage</h3>
           <span className="text-xs text-slate-600">{present}/{LAYER_TYPES.length} layers active</span>
         </div>
-        <LayerGrid layers={layers} />
+        <LayerGrid layers={layers} bundleSections={compiledBundle?.sections} />
       </section>
 
       {/* Memory Map */}
@@ -193,44 +224,84 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
         <MemoryMap projectId={project.id} />
       </section>
 
-      {/* Scan Report */}
-      {files.length > 0 && (
+      {/* Operational Wisdom (Handoffs) */}
+      <section className="mb-12">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">Operational Wisdom</h3>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Lessons passed on between agent sessions — facts, inferences, heuristics, and open questions
+            </p>
+          </div>
+        </div>
+        <HandoffsPanel projectId={project.id} />
+      </section>
+
+      {/* Knowledge Journey / Scan Report */}
+      {(files.length > 0 || sourceDocuments.length > 0) && (
         <section className="mb-12">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h3 className="text-lg font-semibold">Scan Report</h3>
+              <h3 className="text-lg font-semibold">
+                {knowledgeView === 'journey' ? 'Knowledge Journey' : 'Scan Report'}
+              </h3>
               <p className="text-xs text-slate-600 mt-0.5">
-                {files.length} files discovered &middot; {Math.round(files.reduce((s: number, f: any) => s + (f.content_length ?? 0), 0) / 1000)}K chars of context
+                {knowledgeView === 'journey'
+                  ? 'How your documents become agent expertise'
+                  : `${files.length} files discovered · ${Math.round(files.reduce((s: number, f: any) => s + (f.content_length ?? 0), 0) / 1000)}K chars of context`
+                }
               </p>
             </div>
-            {snapshots.length > 0 && (
-              <span className="text-[10px] text-slate-700">
-                Last scan: {new Date(snapshots[snapshots.length - 1].created_at).toLocaleString()}
-              </span>
-            )}
-          </div>
-          <div className="bg-[#0d0d1a] border border-white/[0.04] rounded-xl overflow-hidden">
-            <div className="grid grid-cols-[1fr_100px_80px_80px] gap-px bg-white/[0.02] text-[10px] text-slate-600 uppercase tracking-wide font-semibold">
-              <div className="bg-[#0d0d1a] px-4 py-2">File</div>
-              <div className="bg-[#0d0d1a] px-4 py-2">Layer</div>
-              <div className="bg-[#0d0d1a] px-4 py-2">Source</div>
-              <div className="bg-[#0d0d1a] px-4 py-2 text-right">Size</div>
+            <div className="flex items-center gap-1 bg-white/[0.03] rounded-lg p-0.5">
+              <button
+                onClick={() => setKnowledgeView('journey')}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition ${
+                  knowledgeView === 'journey' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-500 hover:text-slate-400'
+                }`}
+              >
+                Knowledge Journey
+              </button>
+              <button
+                onClick={() => setKnowledgeView('files')}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition ${
+                  knowledgeView === 'files' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-500 hover:text-slate-400'
+                }`}
+              >
+                Raw Files
+              </button>
             </div>
-            {files.map((f: any, i: number) => (
-              <div key={i} className="grid grid-cols-[1fr_100px_80px_80px] gap-px bg-white/[0.02] text-sm hover:bg-white/[0.01] transition">
-                <div className="bg-[#0d0d1a] px-4 py-2.5 font-mono text-xs text-slate-300 truncate">{f.relative_path}</div>
-                <div className="bg-[#0d0d1a] px-4 py-2.5">
-                  {f.inferred_kind ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 capitalize">{f.inferred_kind}</span>
-                  ) : (
-                    <span className="text-[10px] text-slate-700">—</span>
-                  )}
-                </div>
-                <div className="bg-[#0d0d1a] px-4 py-2.5 text-[10px] text-slate-600">{f.source_type}</div>
-                <div className="bg-[#0d0d1a] px-4 py-2.5 text-[10px] text-slate-600 text-right">{((f.content_length ?? 0) / 1000).toFixed(1)}K</div>
-              </div>
-            ))}
           </div>
+
+          {knowledgeView === 'journey' ? (
+            <KnowledgeJourney
+              sourceDocuments={sourceDocuments}
+              layerCandidates={layerCandidates}
+              compiledBundle={compiledBundle}
+            />
+          ) : (
+            <div className="bg-[#0d0d1a] border border-white/[0.04] rounded-xl overflow-hidden">
+              <div className="grid grid-cols-[1fr_100px_80px_80px] gap-px bg-white/[0.02] text-[10px] text-slate-600 uppercase tracking-wide font-semibold">
+                <div className="bg-[#0d0d1a] px-4 py-2">File</div>
+                <div className="bg-[#0d0d1a] px-4 py-2">Layer</div>
+                <div className="bg-[#0d0d1a] px-4 py-2">Source</div>
+                <div className="bg-[#0d0d1a] px-4 py-2 text-right">Size</div>
+              </div>
+              {files.map((f: any, i: number) => (
+                <div key={i} className="grid grid-cols-[1fr_100px_80px_80px] gap-px bg-white/[0.02] text-sm hover:bg-white/[0.01] transition">
+                  <div className="bg-[#0d0d1a] px-4 py-2.5 font-mono text-xs text-slate-300 truncate">{f.relative_path}</div>
+                  <div className="bg-[#0d0d1a] px-4 py-2.5">
+                    {f.inferred_kind ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 capitalize">{f.inferred_kind}</span>
+                    ) : (
+                      <span className="text-[10px] text-slate-700">—</span>
+                    )}
+                  </div>
+                  <div className="bg-[#0d0d1a] px-4 py-2.5 text-[10px] text-slate-600">{f.source_type}</div>
+                  <div className="bg-[#0d0d1a] px-4 py-2.5 text-[10px] text-slate-600 text-right">{((f.content_length ?? 0) / 1000).toFixed(1)}K</div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -243,6 +314,7 @@ export function ProjectDashboard({ project, snapshots, files, dataSources }: Pro
           </div>
         </div>
         <DataSourcesPanel projectId={project.id} dataSources={dataSources} forceOpen={showSourcePicker} />
+        <DeployPanel projectId={project.id} hasAgentConfig={!!hasAgentConfig} />
       </section>
 
       {/* Timeline */}

@@ -147,6 +147,168 @@ create policy "Users can manage own extracted context"
     project_id in (select id from projects where user_id = auth.uid())
   );
 
+-- Source documents (normalized raw content from any connector)
+create table if not exists source_documents (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  data_source_id uuid references data_sources(id) on delete set null,
+  title text not null,
+  source_url text,
+  raw_content text not null,
+  content_hash text not null,
+  mime_type text default 'text/markdown',
+  metadata jsonb default '{}',
+  created_at timestamptz default now()
+);
+
+create index if not exists source_documents_project_idx on source_documents(project_id);
+create index if not exists source_documents_hash_idx on source_documents(content_hash);
+
+alter table source_documents enable row level security;
+
+drop policy if exists "Users can view own source documents" on source_documents;
+drop policy if exists "Users can manage own source documents" on source_documents;
+
+create policy "Users can view own source documents"
+  on source_documents for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own source documents"
+  on source_documents for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- Layer candidates (extracted spans mapped to instruction layers with provenance)
+create table if not exists layer_candidates (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  source_document_id uuid references source_documents(id) on delete cascade not null,
+  layer text not null,
+  content text not null,
+  confidence numeric default 0,
+  rationale text,
+  extraction_method text not null check (extraction_method in ('filename', 'filetype', 'heuristic', 'semantic')),
+  provenance jsonb not null,
+  span_start integer,
+  span_end integer,
+  status text default 'active' check (status in ('active', 'superseded', 'conflicted')),
+  created_at timestamptz default now()
+);
+
+create index if not exists layer_candidates_project_idx on layer_candidates(project_id);
+create index if not exists layer_candidates_layer_idx on layer_candidates(project_id, layer);
+
+alter table layer_candidates enable row level security;
+
+drop policy if exists "Users can view own layer candidates" on layer_candidates;
+drop policy if exists "Users can manage own layer candidates" on layer_candidates;
+
+create policy "Users can view own layer candidates"
+  on layer_candidates for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own layer candidates"
+  on layer_candidates for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- Compiled bundles (cached instruction bundles with provenance)
+create table if not exists compiled_bundles (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  system_prompt text not null,
+  hash text not null,
+  sections jsonb not null,
+  provenance jsonb not null,
+  conflicts jsonb default '[]',
+  gaps jsonb default '[]',
+  metadata jsonb default '{}',
+  created_at timestamptz default now()
+);
+
+create index if not exists compiled_bundles_project_idx on compiled_bundles(project_id);
+
+alter table compiled_bundles enable row level security;
+
+drop policy if exists "Users can view own compiled bundles" on compiled_bundles;
+drop policy if exists "Users can manage own compiled bundles" on compiled_bundles;
+
+create policy "Users can view own compiled bundles"
+  on compiled_bundles for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own compiled bundles"
+  on compiled_bundles for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- Decision audit log (tracks every resolution, acceptance, and auto-decision)
+create table if not exists decision_audit (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  decision_type text not null check (decision_type in (
+    'conflict-resolution', 'candidate-accepted', 'candidate-rejected',
+    'candidate-reassigned', 'auto-dedup', 'auto-conflict-resolution',
+    'confidence-filter', 'handoff-resolved', 'handoff-superseded'
+  )),
+  actor text not null check (actor in ('user', 'system')),
+  target_ids text[] not null default '{}',
+  chosen_option text,
+  alternatives jsonb default '[]',
+  rationale text,
+  context jsonb default '{}',
+  created_at timestamptz default now()
+);
+
+create index if not exists decision_audit_project_idx on decision_audit(project_id);
+create index if not exists decision_audit_type_idx on decision_audit(project_id, decision_type);
+
+alter table decision_audit enable row level security;
+
+drop policy if exists "Users can view own decisions" on decision_audit;
+drop policy if exists "Users can manage own decisions" on decision_audit;
+
+create policy "Users can view own decisions"
+  on decision_audit for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own decisions"
+  on decision_audit for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- Session handoffs (agent-to-agent operational wisdom with decay)
+create table if not exists session_handoffs (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  classification text not null check (classification in ('fact', 'inference', 'heuristic', 'unresolved-question')),
+  content text not null,
+  initial_confidence numeric not null,
+  effective_confidence numeric not null,
+  provenance jsonb not null,
+  reinforcement_count integer default 0,
+  last_reinforced_at timestamptz default now(),
+  status text default 'active' check (status in ('active', 'decayed', 'superseded', 'resolved')),
+  created_at timestamptz default now()
+);
+
+create index if not exists session_handoffs_project_idx on session_handoffs(project_id);
+create index if not exists session_handoffs_status_idx on session_handoffs(project_id, status);
+
+alter table session_handoffs enable row level security;
+
+drop policy if exists "Users can view own handoffs" on session_handoffs;
+drop policy if exists "Users can manage own handoffs" on session_handoffs;
+
+create policy "Users can view own handoffs"
+  on session_handoffs for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own handoffs"
+  on session_handoffs for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
 -- Updated_at trigger
 create or replace function update_updated_at()
 returns trigger as $$
@@ -202,3 +364,94 @@ create policy "public insert" on public_reports for insert with check (true);
 
 -- Allow incrementing view_count from the public viewer route
 create policy "public update view count" on public_reports for update using (true) with check (true);
+
+-- Agent configs (persisted AI provider settings per project)
+create table if not exists agent_configs (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null unique,
+  provider text not null check (provider in ('anthropic', 'openai', 'hosted')),
+  model text not null,
+  api_key_encrypted text,    -- AES-256-GCM encrypted, null for 'hosted'
+  display_name text,         -- friendly name: "Acme Support Bot"
+  widget_config jsonb default '{}',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table agent_configs enable row level security;
+
+drop policy if exists "Users can view own agent configs" on agent_configs;
+drop policy if exists "Users can manage own agent configs" on agent_configs;
+
+create policy "Users can view own agent configs"
+  on agent_configs for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own agent configs"
+  on agent_configs for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+drop trigger if exists agent_configs_updated_at on agent_configs;
+create trigger agent_configs_updated_at
+  before update on agent_configs
+  for each row execute function update_updated_at();
+
+-- Usage events (token metering for hosted tier)
+create table if not exists usage_events (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  input_tokens integer not null,
+  output_tokens integer not null,
+  model text not null,
+  created_at timestamptz default now()
+);
+
+create index if not exists usage_events_project_created_idx
+  on usage_events(project_id, created_at);
+
+alter table usage_events enable row level security;
+
+drop policy if exists "Users can view own usage events" on usage_events;
+drop policy if exists "Users can insert own usage events" on usage_events;
+
+create policy "Users can view own usage events"
+  on usage_events for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can insert own usage events"
+  on usage_events for insert with check (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- Deploy tokens (public authentication for embedded widgets)
+create table if not exists deploy_tokens (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  token text unique not null,
+  allowed_origins text[] default '{}',
+  rate_limit_rpm integer default 20,
+  enabled boolean default true,
+  created_at timestamptz default now()
+);
+
+create index if not exists deploy_tokens_token_idx on deploy_tokens(token);
+
+alter table deploy_tokens enable row level security;
+
+drop policy if exists "Users can view own deploy tokens" on deploy_tokens;
+drop policy if exists "Users can manage own deploy tokens" on deploy_tokens;
+
+create policy "Users can view own deploy tokens"
+  on deploy_tokens for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own deploy tokens"
+  on deploy_tokens for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- Public read for widget endpoints (token lookup without auth)
+drop policy if exists "Public token lookup" on deploy_tokens;
+create policy "Public token lookup"
+  on deploy_tokens for select using (enabled = true);

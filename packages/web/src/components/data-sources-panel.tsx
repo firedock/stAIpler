@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface DataSource {
@@ -16,7 +16,7 @@ const PROVIDERS = [
   { id: 'github', name: 'GitHub', desc: 'Import README, CLAUDE.md, AGENTS.md', ready: true },
   { id: 'file-upload', name: 'File Upload', desc: 'Upload markdown files directly', ready: true },
   { id: 'url', name: 'URL Import', desc: 'Import from any public URL', ready: true },
-  { id: 'google-docs', name: 'Google Docs', desc: 'Import docs, sheets, and slides', ready: false },
+  { id: 'google-docs', name: 'Google Drive', desc: 'Import docs and files via OAuth', ready: true },
   { id: 'notion', name: 'Notion', desc: 'Import pages and databases', ready: false },
   { id: 'confluence', name: 'Confluence', desc: 'Import wiki pages and spaces', ready: false },
   { id: 'slack', name: 'Slack', desc: 'Import channel context and decisions', ready: false },
@@ -74,6 +74,12 @@ export function DataSourcesPanel({ projectId, dataSources, forceOpen }: { projec
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  // Google Drive state
+  const [driveFiles, setDriveFiles] = useState<{ id: string; name: string; mimeType: string; modifiedTime: string }[]>([]);
+  const [selectedDriveFiles, setSelectedDriveFiles] = useState<Set<string>>(new Set());
+  const [driveSourceId, setDriveSourceId] = useState<string | null>(null);
+  const [drivePhase, setDrivePhase] = useState<'connect' | 'pick' | 'syncing'>('connect');
 
   async function handleGitHubImport() {
     if (!repoUrl) return;
@@ -150,6 +156,90 @@ export function DataSourcesPanel({ projectId, dataSources, forceOpen }: { projec
       setLoading(false);
     }
   }
+
+  async function handleGoogleDriveConnect() {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/sources/google-drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      // Redirect to Google OAuth
+      window.location.href = data.authUrl;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect Google Drive');
+      setLoading(false);
+    }
+  }
+
+  async function handleDriveListFiles(sourceId: string) {
+    setLoading(true);
+    setError('');
+    setDriveSourceId(sourceId);
+    try {
+      const res = await fetch('/api/sources/google-drive/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, sourceId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.phase === 'pick') {
+        setDriveFiles(data.files);
+        setDrivePhase('pick');
+        // Select all by default
+        setSelectedDriveFiles(new Set(data.files.map((f: any) => f.id)));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to list files');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDriveSync() {
+    if (!driveSourceId || selectedDriveFiles.size === 0) return;
+    setLoading(true);
+    setError('');
+    setDrivePhase('syncing');
+    try {
+      const res = await fetch('/api/sources/google-drive/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, sourceId: driveSourceId, fileIds: Array.from(selectedDriveFiles) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setResult(data);
+      setActiveFlow(null);
+      setDrivePhase('connect');
+      setTimeout(() => router.refresh(), 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed');
+      setDrivePhase('pick');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Check for Google Drive OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('source') === 'google-drive' && params.get('status') === 'connected') {
+      const sourceId = params.get('sourceId');
+      if (sourceId) {
+        setActiveFlow('google-docs');
+        setShowPicker(false);
+        handleDriveListFiles(sourceId);
+        // Clean up URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, []);
 
   function handleProviderClick(providerId: string) {
     const provider = PROVIDERS.find(p => p.id === providerId);
@@ -321,6 +411,90 @@ export function DataSourcesPanel({ projectId, dataSources, forceOpen }: { projec
             </a>
             <button onClick={() => setActiveFlow(null)} className="text-xs text-slate-600 hover:text-slate-400 transition">Cancel</button>
           </div>
+        </div>
+      )}
+
+      {/* Active flow: Google Drive */}
+      {activeFlow === 'google-docs' && (
+        <div className="mb-4 p-5 rounded-xl bg-[#0d0d1a] border border-blue-500/20">
+          <div className="flex items-center gap-3 mb-4">
+            <ProviderLogo id="google-docs" />
+            <div>
+              <div className="font-semibold text-sm">Connect Google Drive</div>
+              <div className="text-xs text-slate-500">
+                {drivePhase === 'connect' && 'Sign in with Google to import your documents'}
+                {drivePhase === 'pick' && `Found ${driveFiles.length} documents — select which to import`}
+                {drivePhase === 'syncing' && 'Importing selected documents...'}
+              </div>
+            </div>
+          </div>
+
+          {drivePhase === 'connect' && (
+            <button
+              onClick={handleGoogleDriveConnect}
+              disabled={loading}
+              className="w-full py-3 rounded-lg bg-[#4285F4] text-sm font-semibold hover:opacity-90 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#fff"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              {loading ? 'Connecting...' : 'Sign in with Google'}
+            </button>
+          )}
+
+          {drivePhase === 'pick' && (
+            <>
+              <div className="max-h-60 overflow-y-auto space-y-1 mb-4">
+                {driveFiles.map(f => (
+                  <label key={f.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/[0.02] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedDriveFiles.has(f.id)}
+                      onChange={() => {
+                        const next = new Set(selectedDriveFiles);
+                        if (next.has(f.id)) next.delete(f.id);
+                        else next.add(f.id);
+                        setSelectedDriveFiles(next);
+                      }}
+                      className="rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm truncate">{f.name}</div>
+                      <div className="text-[10px] text-slate-600">{new Date(f.modifiedTime).toLocaleDateString()}</div>
+                    </div>
+                  </label>
+                ))}
+                {driveFiles.length === 0 && (
+                  <div className="text-center text-sm text-slate-600 py-8">No documents found in your Google Drive.</div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    if (selectedDriveFiles.size === driveFiles.length) setSelectedDriveFiles(new Set());
+                    else setSelectedDriveFiles(new Set(driveFiles.map(f => f.id)));
+                  }}
+                  className="px-3 py-2 rounded-lg bg-white/5 text-xs text-slate-400 hover:text-slate-300 transition"
+                >
+                  {selectedDriveFiles.size === driveFiles.length ? 'Deselect all' : 'Select all'}
+                </button>
+                <button
+                  onClick={handleDriveSync}
+                  disabled={selectedDriveFiles.size === 0}
+                  className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-sm font-medium hover:opacity-90 transition disabled:opacity-50"
+                >
+                  Import {selectedDriveFiles.size} document{selectedDriveFiles.size !== 1 ? 's' : ''}
+                </button>
+              </div>
+            </>
+          )}
+
+          {drivePhase === 'syncing' && (
+            <div className="text-center py-6">
+              <div className="animate-spin w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full mx-auto mb-3" />
+              <div className="text-sm text-slate-400">Importing and classifying documents...</div>
+            </div>
+          )}
+
+          <button onClick={() => { setActiveFlow(null); setDrivePhase('connect'); }} className="text-xs text-slate-600 mt-3 hover:text-slate-400 transition">Cancel</button>
         </div>
       )}
 

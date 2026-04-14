@@ -1,5 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  normalizeToSourceDocuments,
+  runPipeline,
+  computeReadinessScore,
+  buildReviewItems,
+} from '@staipler/core';
+import type { RawInput } from '@staipler/core';
+import {
+  storeSourceDocuments,
+  storeLayerCandidates,
+  storeCompiledBundle,
+  backfillProjectFiles,
+  logTransformations,
+} from '@/lib/pipeline/store';
 
 // Known instruction file patterns to look for in a repo
 const INSTRUCTION_FILES = [
@@ -22,64 +36,6 @@ interface GitHubFile {
   type: string;
   download_url: string | null;
   size: number;
-}
-
-const KIND_SIGNALS: Record<string, RegExp[]> = {
-  identity: [/you are\b/i, /your role/i, /act as/i, /persona/i],
-  goals: [/\bgoals?\b/i, /\bobjective/i, /\bpurpose\b/i],
-  context: [/\bcontext\b/i, /\bdomain\b/i, /\bbackground\b/i, /tech stack/i],
-  constraints: [/\bnever\b/i, /\bdo not\b/i, /\bmust not\b/i, /\bavoid\b/i, /\brule/i],
-  skills: [/\bskill/i, /\bcapabilit/i, /\bworkflow/i, /\bstep\s*\d/i],
-  style: [/\bstyle\b/i, /\btone\b/i, /\bformat/i, /\bvoice\b/i],
-  examples: [/\bexample/i, /\bsample/i, /\bfor instance/i],
-  tools: [/\btool/i, /\bfunction call/i, /\bapi\b/i, /\bcommand\b/i],
-  policies: [/\bpolic/i, /\bcompliance/i, /\blegal\b/i, /\bbrand\b/i],
-  memory: [/\bmemory\b/i, /\bremember\b/i, /\bsession/i],
-};
-
-const FILENAME_TO_KIND: Record<string, string> = {
-  'IDENTITY.md': 'identity', 'GOALS.md': 'goals', 'CONTEXT.md': 'context',
-  'CONSTRAINTS.md': 'constraints', 'SKILLS.md': 'skills', 'STYLE.md': 'style',
-  'EXAMPLES.md': 'examples', 'TOOLS.md': 'tools', 'MEMORY.md': 'memory',
-  'POLICIES.md': 'policies', 'EVALS.md': 'evals', 'PROMPTS.md': 'prompts',
-  'CONVENTIONS.md': 'constraints', 'SECURITY.md': 'constraints',
-  'ARCHITECTURE.md': 'context', 'PLAN.md': 'goals', 'API.md': 'context',
-  'TESTING.md': 'context', 'CONTRIBUTING.md': 'constraints',
-  'CHANGELOG.md': 'context', 'README.md': 'context',
-};
-
-const SOURCE_TYPE_MAP: Record<string, string> = {
-  'CLAUDE.md': 'claude-md', 'AGENTS.md': 'agents-md', 'GEMINI.md': 'gemini-md',
-  'CONVENTIONS.md': 'conventions-md', '.cursorrules': 'cursor-rules',
-  'copilot-instructions.md': 'copilot-instructions',
-};
-
-function inferKind(filename: string, content: string): { kind: string | null; confidence: number } {
-  // Check filename first
-  const basename = filename.split('/').pop() ?? filename;
-  if (FILENAME_TO_KIND[basename]) {
-    return { kind: FILENAME_TO_KIND[basename], confidence: 0.9 };
-  }
-
-  // Score by content keywords
-  let bestKind: string | null = null;
-  let bestScore = 0;
-  for (const [kind, patterns] of Object.entries(KIND_SIGNALS)) {
-    const score = patterns.filter(p => p.test(content)).length;
-    if (score > bestScore) {
-      bestScore = score;
-      bestKind = kind;
-    }
-  }
-
-  if (bestScore === 0) return { kind: null, confidence: 0 };
-  const maxPatterns = KIND_SIGNALS[bestKind!].length;
-  return { kind: bestKind, confidence: Math.min(0.95, 0.3 + (bestScore / maxPatterns) * 0.65) };
-}
-
-function getSourceType(filename: string): string {
-  const basename = filename.split('/').pop() ?? filename;
-  return SOURCE_TYPE_MAP[basename] ?? 'generic-md';
 }
 
 async function fetchGitHubFile(owner: string, repo: string, path: string): Promise<string | null> {
@@ -136,89 +92,52 @@ export async function POST(request: Request) {
 
     if (sourceError) return NextResponse.json({ error: sourceError.message }, { status: 500 });
 
-    // Fetch known instruction files from root
-    const files: { path: string; content: string }[] = [];
+    // ---- Fetch raw content (connector-specific) ----
+
+    const rawFiles: { path: string; content: string }[] = [];
 
     for (const filename of INSTRUCTION_FILES) {
       const content = await fetchGitHubFile(owner, repoName, filename);
-      if (content) {
-        files.push({ path: filename, content });
-      }
+      if (content) rawFiles.push({ path: filename, content });
     }
 
-    // Scan known directories for additional .md files
     for (const dir of SCAN_DIRS) {
       const dirFiles = await listGitHubDir(owner, repoName, dir);
       for (const file of dirFiles) {
         if (file.type === 'file' && (file.name.endsWith('.md') || file.name.endsWith('.mdc'))) {
-          const alreadyFound = files.some(f => f.path === file.path);
-          if (!alreadyFound) {
+          if (!rawFiles.some(f => f.path === file.path)) {
             const content = await fetchGitHubFile(owner, repoName, file.path);
-            if (content) {
-              files.push({ path: file.path, content });
-            }
+            if (content) rawFiles.push({ path: file.path, content });
           }
         }
       }
     }
 
-    // Classify and save files
-    const projectFiles = files.map(f => {
-      const { kind, confidence } = inferKind(f.path, f.content);
-      return {
-        project_id: projectId,
-        file_name: f.path.split('/').pop() ?? f.path,
-        relative_path: f.path,
-        source_type: getSourceType(f.path),
-        inferred_kind: kind,
-        inferred_confidence: confidence,
-        content_length: f.content.length,
-        content: f.content,
-      };
+    // ---- Stage 1: Ingestion ----
+
+    const rawInputs: RawInput[] = rawFiles.map(f => ({
+      title: f.path.split('/').pop() ?? f.path,
+      content: f.content,
+      sourceUrl: `https://github.com/${owner}/${repoName}/blob/HEAD/${f.path}`,
+    }));
+
+    const sourceDocs = normalizeToSourceDocuments(rawInputs, {
+      projectId,
+      dataSourceId: source.id,
+      provider: 'github',
     });
 
-    if (projectFiles.length > 0) {
-      await supabase.from('project_files').insert(projectFiles);
-    }
+    // ---- Stages 2-4: Extract → Organize → Compile ----
 
-    // Calculate layer scores
-    const layerScores: Record<string, number> = {};
-    for (const pf of projectFiles) {
-      if (pf.inferred_kind) {
-        const current = layerScores[pf.inferred_kind] ?? 0;
-        const fileScore = Math.min(100, 30 + (pf.content_length > 200 ? 15 : 0) + (pf.content_length > 500 ? 10 : 0) + (pf.content_length > 1000 ? 10 : 0) + Math.round(pf.inferred_confidence * 20) + 15);
-        layerScores[pf.inferred_kind] = Math.max(current, fileScore);
-      }
-    }
+    const result = await runPipeline(sourceDocs);
 
-    // Calculate overall readiness
-    const allKinds = ['constraints', 'context', 'evals', 'examples', 'goals', 'identity', 'memory', 'policies', 'prompts', 'skills', 'style', 'tools'];
-    const weights: Record<string, number> = { identity: 3, constraints: 3, context: 2, skills: 2, goals: 2, style: 2, policies: 2, examples: 1, tools: 1, evals: 1, prompts: 1, memory: 1 };
-    let totalWeight = 0;
-    let weightedScore = 0;
-    for (const kind of allKinds) {
-      const w = weights[kind] ?? 1;
-      totalWeight += w;
-      weightedScore += (layerScores[kind] ?? 0) * w;
-    }
-    const readinessScore = Math.round(weightedScore / totalWeight);
-    const grade = readinessScore >= 90 ? 'A' : readinessScore >= 80 ? 'B' : readinessScore >= 70 ? 'C' : readinessScore >= 60 ? 'D' : 'F';
+    // ---- Persist results ----
 
-    // Update project score
-    await supabase
-      .from('projects')
-      .update({ readiness_score: readinessScore, grade })
-      .eq('id', projectId);
-
-    // Save snapshot
-    await supabase.from('snapshots').insert({
-      project_id: projectId,
-      readiness_score: readinessScore,
-      grade,
-      layer_scores: layerScores,
-      action: 'scan',
-      notes: `GitHub import: ${owner}/${repoName} — ${files.length} files found`,
-    });
+    await storeSourceDocuments(supabase, result.sourceDocuments);
+    await storeLayerCandidates(supabase, result.candidates);
+    await storeCompiledBundle(supabase, projectId, result.bundle, result.resolvedLayers);
+    await backfillProjectFiles(supabase, projectId, result.sourceDocuments, result.candidates);
+    await logTransformations(supabase, projectId, result.transformations);
 
     // Update data source status
     await supabase
@@ -226,12 +145,26 @@ export async function POST(request: Request) {
       .update({ status: 'connected', last_synced_at: new Date().toISOString() })
       .eq('id', source.id);
 
+    const { readinessScore, grade, layerScores } = computeReadinessScore(result.resolvedLayers);
+    const reviewItems = buildReviewItems(result.resolvedLayers, result.candidates);
+
     return NextResponse.json({
       success: true,
-      filesFound: files.length,
+      filesFound: rawFiles.length,
+      candidateCount: result.candidates.length,
+      conflictCount: result.bundle.conflicts.length,
+      populatedLayers: result.bundle.sections.map(s => s.layer),
+      gaps: result.bundle.gaps,
+      needsReview: reviewItems.length > 0,
+      reviewItems,
       readinessScore,
       grade,
       layerScores,
+      transformations: {
+        deduplicatedCount: result.transformations.mergedCandidates.length,
+        autoResolvedCount: result.transformations.autoResolutions.length,
+        gapReasons: result.transformations.gapReasons,
+      },
     });
 
   } catch (err) {
