@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { renderKnowledge } from '@/lib/knowledge/render';
 
 /**
  * POST /api/knowledge/atoms/[id]/action
@@ -74,6 +75,15 @@ export async function POST(
   // RLS already scopes visibility, but the check above used the user's client so
   // unauthorized atoms would have returned null.
 
+  // Actions that change status or content trigger a render so the prompt
+  // view and articles stay current. Fire-and-forget; render has its own
+  // failed-run visibility.
+  const actionsAffectingArtifacts = new Set<Action>(['approve', 'edit', 'promote', 'demote', 'merge']);
+  async function maybeRender() {
+    if (!actionsAffectingArtifacts.has(action)) return;
+    try { await renderKnowledge(supabase, atom!.project_id); } catch { /* recorded as failed render run */ }
+  }
+
   switch (action) {
     case 'approve': {
       // Stamp approval. Auto-promote candidate → provisional if authority justifies it.
@@ -91,6 +101,7 @@ export async function POST(
         to_status: promoted ? 'provisional' : atom.status,
         from_review_state: atom.review_state,
       });
+      await maybeRender();
       return NextResponse.json({ ok: true, promoted });
     }
 
@@ -119,6 +130,7 @@ export async function POST(
       await logEvent(supabase, atom.id, atom.project_id, 'user_edited', {
         previous_content: previous,
       });
+      await maybeRender();
       return NextResponse.json({ ok: true });
     }
 
@@ -144,6 +156,7 @@ export async function POST(
         to_status: 'stable',
         note: 'Manual promotion to stable via review queue.',
       });
+      await maybeRender();
       return NextResponse.json({ ok: true });
     }
 
@@ -170,6 +183,7 @@ export async function POST(
         nextStatus === 'deprecated' ? 'deprecated' : 'user_demoted',
         { from_status: atom.status, to_status: nextStatus },
       );
+      await maybeRender();
       return NextResponse.json({ ok: true, status: nextStatus });
     }
 
@@ -220,6 +234,7 @@ export async function POST(
         reinforcement_carried: Math.max(1, atom.reinforcement_count),
         sessions_carried: Math.max(1, atom.distinct_session_count),
       });
+      await maybeRender();
       return NextResponse.json({ ok: true, superseded_by: peer.id });
     }
   }

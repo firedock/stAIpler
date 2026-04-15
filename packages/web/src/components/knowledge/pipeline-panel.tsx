@@ -46,6 +46,7 @@ export function KnowledgePipelinePanel({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Stage | null>(null);
   const [extracting, setExtracting] = useState(false);
+  const [rendering, setRendering] = useState(false);
   const [extractMsg, setExtractMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -90,6 +91,30 @@ export function KnowledgePipelinePanel({ projectId }: { projectId: string }) {
     await load();
   }, [projectId, load]);
 
+  const runRender = useCallback(async () => {
+    setRendering(true);
+    setExtractMsg(null);
+    try {
+      const res = await fetch('/api/knowledge/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setExtractMsg(`Render failed: ${data.error ?? res.statusText}`);
+      } else {
+        setExtractMsg(
+          `Rendered ${data.articlesUpserted} article${data.articlesUpserted === 1 ? '' : 's'}; prompt view = ${data.promptViewAtomCount} atoms, ~${data.promptViewTokens} tokens.`,
+        );
+      }
+    } catch (err) {
+      setExtractMsg(err instanceof Error ? err.message : 'Render failed');
+    }
+    setRendering(false);
+    await load();
+  }, [projectId, load]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -103,6 +128,13 @@ export function KnowledgePipelinePanel({ projectId }: { projectId: string }) {
             className="text-[11px] px-2.5 py-1 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20 transition disabled:opacity-50"
           >
             {extracting ? 'Extracting…' : 'Extract now'}
+          </button>
+          <button
+            onClick={runRender}
+            disabled={rendering}
+            className="text-[11px] px-2.5 py-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 text-indigo-200 hover:bg-indigo-500/20 transition disabled:opacity-50"
+          >
+            {rendering ? 'Rendering…' : 'Render now'}
           </button>
           <button
             onClick={load}

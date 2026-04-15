@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { extractFromLogs } from '@/lib/knowledge/extract';
 import { reconcileAtoms } from '@/lib/knowledge/reconcile';
 import { applyPromotionRules } from '@/lib/knowledge/promote';
+import { renderKnowledge } from '@/lib/knowledge/render';
 
 /**
  * POST /api/knowledge/extract
@@ -48,10 +49,16 @@ export async function POST(request: Request) {
   // visibility in the pipeline panel.
   let reconcile = null as Awaited<ReturnType<typeof reconcileAtoms>> | null;
   let promote = null as Awaited<ReturnType<typeof applyPromotionRules>> | null;
+  let render = null as Awaited<ReturnType<typeof renderKnowledge>> | null;
   if (result.extractedCount > 0) {
-    try { reconcile = await reconcileAtoms(supabase, projectId); } catch { /* recorded as failed run */ }
-    try { promote = await applyPromotionRules(supabase, projectId); } catch { /* recorded as failed run */ }
+    try { reconcile = await reconcileAtoms(supabase, projectId); } catch { /* failed run */ }
+    try { promote = await applyPromotionRules(supabase, projectId); } catch { /* failed run */ }
+    // Render regenerates articles + prompt view whenever atom state may have
+    // changed. Extract itself never makes atoms eligible (candidates are not
+    // injected), but promote may. Always run render after promote so the
+    // next compile's inject stage sees a fresh prompt view.
+    try { render = await renderKnowledge(supabase, projectId); } catch { /* failed run */ }
   }
 
-  return NextResponse.json({ ...result, reconcile, promote });
+  return NextResponse.json({ ...result, reconcile, promote, render });
 }
