@@ -22,7 +22,7 @@ export async function GET(
   fetch(BASE + '/api/widget/config?token=' + TOKEN)
     .then(function(r) { return r.json(); })
     .then(function(c) { config = Object.assign(config, c); updateUI(); })
-    .catch(function() {});
+    .catch(function() { /* Widget config fetch failed — uses defaults */ });
 
   // Create container
   var container = document.createElement('div');
@@ -163,7 +163,7 @@ export async function GET(
                 messages[messages.length - 1].content = assistantText;
                 render();
               }
-            } catch(e) {}
+            } catch(e) { /* Partial SSE chunk during streaming */ }
           }
           read();
         });

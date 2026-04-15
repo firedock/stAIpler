@@ -170,7 +170,9 @@ Respond with ONLY a valid JSON array:`;
               content_length: content.length,
               content,
             });
-          } catch {}
+          } catch (err) {
+            send({ type: 'step', step: 4, status: 'running', detail: `Failed to generate ${kind}: ${err instanceof Error ? err.message : 'unknown error'}` });
+          }
         }
 
         send({ type: 'step', step: 4, status: 'done', detail: `${generated.length} layers` });
@@ -333,7 +335,7 @@ function callClaudeSync(
     }).trim();
   } finally {
     for (const f of cleanup) {
-      try { execSync(`rm -f '${f}'`); } catch {}
+      try { execSync(`rm -f '${f}'`); } catch { /* temp file cleanup — non-critical */ }
     }
   }
 }

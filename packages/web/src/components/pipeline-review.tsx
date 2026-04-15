@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 
+// Note: error state is tracked inline and displayed to the user — no silent failures.
+
 /**
  * Pipeline Review — surfaces items that need human judgment before
  * the pipeline finalizes compilation.
@@ -71,6 +73,7 @@ export function PipelineReview({ projectId, reviewItems, onResolved, readinessSc
     return defaults;
   });
   const [resolving, setResolving] = useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   const autoAccepted = reviewItems.length; // All items shown for review
@@ -78,6 +81,7 @@ export function PipelineReview({ projectId, reviewItems, onResolved, readinessSc
 
   async function handleResolve() {
     setResolving(true);
+    setResolveError(null);
     try {
       const res = await fetch('/api/pipeline/resolve', {
         method: 'POST',
@@ -92,8 +96,13 @@ export function PipelineReview({ projectId, reviewItems, onResolved, readinessSc
       });
       if (res.ok) {
         onResolved();
+      } else {
+        const data = await res.json();
+        setResolveError(data.error ?? 'Failed to apply your decisions');
       }
-    } catch {}
+    } catch (err) {
+      setResolveError(err instanceof Error ? err.message : 'Could not reach the server');
+    }
     setResolving(false);
   }
 
@@ -174,7 +183,13 @@ export function PipelineReview({ projectId, reviewItems, onResolved, readinessSc
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-4 border-t border-white/[0.04] flex items-center justify-between">
+      <div className="px-5 py-4 border-t border-white/[0.04]">
+        {resolveError && (
+          <div className="mb-3 px-3 py-2 rounded bg-red-500/10 text-[11px] text-red-400">
+            {resolveError}
+          </div>
+        )}
+        <div className="flex items-center justify-between">
         <div className="text-[11px] text-slate-600">
           Score after review: <span className="text-slate-400 font-medium">{readinessScore}/100 ({grade})</span>
         </div>
@@ -186,6 +201,7 @@ export function PipelineReview({ projectId, reviewItems, onResolved, readinessSc
           >
             {resolving ? 'Finalizing...' : 'Looks good, compile my agent'}
           </button>
+        </div>
         </div>
       </div>
     </div>

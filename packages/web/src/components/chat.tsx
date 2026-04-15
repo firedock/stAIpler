@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { SessionContextPanel } from '@/components/session-context-panel';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -96,6 +97,7 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
   const [model, setModel] = useState(agentConfig?.model ?? 'sonnet');
   const [apiKey, setApiKey] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showContextPanel, setShowContextPanel] = useState(true);
 
   // stAIpler chat state
   const [staiplerMessages, setStaiplerMessages] = useState<Message[]>([]);
@@ -120,7 +122,7 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
           if (data.suggestions) setSuggestions(data.suggestions);
           setSuggestionsInfo({ fileCount: data.fileCount, layerCount: data.layerCount, layers: data.layers ?? [] });
         })
-        .catch(() => {});
+        .catch(() => { /* Suggestions are non-critical — chat works without them */ });
     }
   }, [hasPersistedConfig, projectId]);
 
@@ -144,7 +146,7 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
   const exchangeCount = staiplerMessages.filter(m => m.role === 'assistant').length;
 
   // Attribution state for stAIpler responses
-  const [attribution, setAttribution] = useState<{ layer: string; fileName: string; path: string; reason: string; confidence: number }[]>([]);
+  const [attribution, setAttribution] = useState<{ layer: string; fileName: string; path: string; reason: string; confidence: number; sourceType?: string; status?: string; rejectionReason?: string }[]>([]);
 
   async function streamChat(
     projectId: string,
@@ -196,7 +198,9 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
             fullText += `\n\nError: ${parsed.error}`;
             onChunk(fullText);
           }
-        } catch {}
+        } catch {
+          // Partial SSE chunk — expected during streaming, not an error
+        }
       }
     }
 
@@ -269,7 +273,8 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-57px)]">
+    <div className="flex h-[calc(100vh-57px)]">
+      <div className="flex flex-col flex-1 min-w-0">
       {/* Toolbar */}
       <div className="px-4 py-2 border-b border-white/[0.04] flex items-center justify-between bg-[#06060e] flex-wrap gap-2">
         <div className="flex items-center gap-3">
@@ -279,6 +284,17 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* Session context toggle — shows what the agent is using */}
+          <button
+            onClick={() => setShowContextPanel(!showContextPanel)}
+            className={`px-2 py-1.5 rounded-md text-xs transition flex items-center gap-1.5 ${showContextPanel ? 'bg-purple-500/15 text-purple-400' : 'bg-white/5 text-slate-500 hover:text-slate-400'}`}
+            title="Session context"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            <span className="hidden sm:inline">Context</span>
+          </button>
           {/* Full controls for legacy/manual mode; gear toggle for configured agents */}
           {hasPersistedConfig ? (
             <button
@@ -410,22 +426,43 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
                 label="With stAIpler"
                 accent="#a78bfa"
               />
-              {/* Attribution panel — shows which memories were used */}
+              {/* Attribution panel — shows which sources were used and which were rejected */}
               {attribution.length > 0 && staiplerMessages.length > 0 && (
                 <div className="px-3 py-2 border-t border-white/[0.04] bg-purple-500/[0.03]">
-                  <div className="text-[9px] text-purple-400/60 uppercase tracking-wide mb-1.5">Memory nodes used</div>
+                  <div className="text-[9px] text-purple-400/60 uppercase tracking-wide mb-1.5">Response grounded in</div>
                   <div className="flex flex-wrap gap-1">
-                    {attribution.map((a, i) => (
+                    {attribution.filter(a => a.status !== 'rejected').map((a, i) => (
                       <span
                         key={i}
                         className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 cursor-default"
-                        title={`${a.reason} (${Math.round(a.confidence * 100)}% confidence)\n${a.path}`}
+                        title={`${a.reason} (${Math.round(a.confidence * 100)}% confidence)\nSource: ${a.sourceType ?? 'unknown'}\n${a.path}`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: LAYER_COLORS[a.layer] ?? '#6b7280' }} />
                         {a.layer}
+                        {a.sourceType === 'ai-generated' && <span className="text-amber-400/60 ml-0.5">*</span>}
                       </span>
                     ))}
                   </div>
+                  {attribution.some(a => a.status === 'rejected') && (
+                    <div className="mt-1.5">
+                      <div className="text-[9px] text-slate-600 uppercase tracking-wide mb-1">Not used</div>
+                      <div className="flex flex-wrap gap-1">
+                        {attribution.filter(a => a.status === 'rejected').map((a, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-white/[0.02] text-slate-600 cursor-default"
+                            title={`${a.rejectionReason}\n${a.path}`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full opacity-40" style={{ backgroundColor: LAYER_COLORS[a.layer] ?? '#6b7280' }} />
+                            {a.fileName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {attribution.some(a => a.sourceType === 'ai-generated' && a.status !== 'rejected') && (
+                    <div className="mt-1 text-[9px] text-amber-400/40">* AI-generated — no source material for this layer</div>
+                  )}
                 </div>
               )}
             </div>
@@ -490,19 +527,37 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
             {/* Attribution in single view */}
             {!showWelcome && attribution.length > 0 && staiplerMessages.length > 0 && (
               <div className="px-3 py-2 border-t border-white/[0.04] bg-purple-500/[0.03]">
-                <div className="text-[9px] text-purple-400/60 uppercase tracking-wide mb-1.5">Knowledge sources used</div>
+                <div className="text-[9px] text-purple-400/60 uppercase tracking-wide mb-1.5">Response grounded in</div>
                 <div className="flex flex-wrap gap-1">
-                  {attribution.map((a, i) => (
+                  {attribution.filter(a => a.status !== 'rejected').map((a, i) => (
                     <span
                       key={i}
                       className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 cursor-default"
-                      title={`${a.reason} (${Math.round(a.confidence * 100)}% confidence)\n${a.path}`}
+                      title={`${a.reason} (${Math.round(a.confidence * 100)}% confidence)\nSource: ${a.sourceType ?? 'unknown'}\n${a.path}`}
                     >
                       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: LAYER_COLORS[a.layer] ?? '#6b7280' }} />
                       {a.layer}
+                      {a.sourceType === 'ai-generated' && <span className="text-amber-400/60 ml-0.5">*</span>}
                     </span>
                   ))}
                 </div>
+                {attribution.some(a => a.status === 'rejected') && (
+                  <div className="mt-1.5">
+                    <div className="text-[9px] text-slate-600 uppercase tracking-wide mb-1">Not used</div>
+                    <div className="flex flex-wrap gap-1">
+                      {attribution.filter(a => a.status === 'rejected').map((a, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-white/[0.02] text-slate-600 cursor-default"
+                          title={`${a.rejectionReason}\n${a.path}`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full opacity-40" style={{ backgroundColor: LAYER_COLORS[a.layer] ?? '#6b7280' }} />
+                          {a.fileName}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -536,6 +591,10 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
           </p>
         )}
       </div>
+      </div>
+      {showContextPanel && (
+        <SessionContextPanel projectId={projectId} onClose={() => setShowContextPanel(false)} />
+      )}
     </div>
   );
 }

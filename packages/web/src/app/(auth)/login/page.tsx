@@ -47,7 +47,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <Link href="/" className="inline-block mb-6">
-            <span className="text-2xl font-bold">st<span className="text-purple-400">AI</span>pler</span>
+            <img src="/staipler-logo.svg" alt="stAIpler" className="h-16 w-auto mx-auto" />
           </Link>
           <h1 className="text-xl font-semibold">Welcome back</h1>
           <p className="text-sm text-slate-500 mt-1">Sign in to your dashboard</p>

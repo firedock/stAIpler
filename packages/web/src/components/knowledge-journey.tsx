@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 /**
  * Knowledge Journey — three-column view showing how raw documents
  * become agent expertise through the evidence pipeline.
@@ -58,6 +60,16 @@ interface KnowledgeJourneyProps {
 }
 
 export function KnowledgeJourney({ sourceDocuments, layerCandidates, compiledBundle }: KnowledgeJourneyProps) {
+  const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
+
+  function toggleLayer(layer: string) {
+    setExpandedLayers(prev => {
+      const next = new Set(prev);
+      if (next.has(layer)) next.delete(layer);
+      else next.add(layer);
+      return next;
+    });
+  }
   // Group sources by provider
   const sourcesByProvider = new Map<string, any[]>();
   for (const doc of sourceDocuments) {
@@ -134,32 +146,52 @@ export function KnowledgeJourney({ sourceDocuments, layerCandidates, compiledBun
         <div className="space-y-2">
           {Array.from(candidatesByLayer.entries())
             .sort(([, a], [, b]) => b.length - a.length)
-            .map(([layer, candidates]) => (
-            <div key={layer} className="px-2 py-2 rounded bg-white/[0.02]">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: LAYER_COLORS[layer] ?? '#64748b' }} />
-                  <span className="text-[11px] font-medium text-slate-300 capitalize">{layer}</span>
-                </div>
-                <span className="text-[10px] text-slate-600">{candidates.length} found</span>
-              </div>
-              {candidates.slice(0, 2).map((c: any, i: number) => {
-                const conf = confidenceLabel(c.confidence);
-                return (
-                  <div key={i} className="ml-3 mt-1">
-                    <p className="text-[10px] text-slate-500 truncate">{(c.content ?? '').slice(0, 80)}...</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-[9px] ${conf.color}`}>{conf.text}</span>
-                      <span className="text-[9px] text-slate-700">{METHOD_LABELS[c.extraction_method] ?? c.extraction_method}</span>
+            .map(([layer, candidates]) => {
+              const isExpanded = expandedLayers.has(layer);
+              const displayCandidates = isExpanded ? candidates : candidates.slice(0, 3);
+
+              return (
+                <div key={layer} className="px-2 py-2 rounded bg-white/[0.02]">
+                  <button
+                    onClick={() => toggleLayer(layer)}
+                    className="w-full flex items-center justify-between mb-1 hover:opacity-80 transition"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: LAYER_COLORS[layer] ?? '#64748b' }} />
+                      <span className="text-[11px] font-medium text-slate-300 capitalize">{layer}</span>
                     </div>
-                  </div>
-                );
-              })}
-              {candidates.length > 2 && (
-                <p className="text-[9px] text-slate-700 ml-3 mt-1">+{candidates.length - 2} more</p>
-              )}
-            </div>
-          ))}
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-600">{candidates.length} found</span>
+                      <span className="text-[10px] text-slate-700">{isExpanded ? '▾' : '▸'}</span>
+                    </div>
+                  </button>
+                  {displayCandidates.map((c: any, i: number) => {
+                    const conf = confidenceLabel(c.confidence);
+                    const provenance = c.provenance;
+                    return (
+                      <div key={i} className="ml-3 mt-1">
+                        <p className="text-[10px] text-slate-500">{(c.content ?? '').slice(0, isExpanded ? 200 : 80)}{(c.content ?? '').length > (isExpanded ? 200 : 80) ? '...' : ''}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`text-[9px] ${conf.color}`}>{conf.text}</span>
+                          <span className="text-[9px] text-slate-700">{METHOD_LABELS[c.extraction_method] ?? c.extraction_method}</span>
+                          {isExpanded && provenance?.sourceTitle && (
+                            <span className="text-[9px] text-slate-700">from {provenance.sourceTitle}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!isExpanded && candidates.length > 3 && (
+                    <button
+                      onClick={() => toggleLayer(layer)}
+                      className="text-[9px] text-purple-400/60 ml-3 mt-1 hover:text-purple-400 transition"
+                    >
+                      +{candidates.length - 3} more — click to expand
+                    </button>
+                  )}
+                </div>
+              );
+            })}
         </div>
       </div>
 

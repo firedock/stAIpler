@@ -16,7 +16,12 @@ const KIND_TITLES: Record<string, string> = {
   prompts: 'Prompts', evals: 'Evals', memory: 'Memory',
 };
 
-function compileSystemPrompt(files: any[]): string {
+interface WidgetCitation {
+  layer: string;
+  sourceType: string;
+}
+
+function compileSystemPromptWithCitations(files: any[]): { prompt: string; citations: WidgetCitation[] } {
   const byKind: Record<string, any[]> = {};
   for (const file of files) {
     if (!file.inferred_kind || !file.content) continue;
@@ -25,6 +30,8 @@ function compileSystemPrompt(files: any[]): string {
   }
 
   const sections: string[] = [];
+  const citations: WidgetCitation[] = [];
+
   for (const kind of CANONICAL_ORDER) {
     const kindFiles = byKind[kind];
     if (!kindFiles || kindFiles.length === 0) continue;
@@ -33,11 +40,15 @@ function compileSystemPrompt(files: any[]): string {
     if (kind === 'identity' || kind === 'style') {
       kindFiles.sort((a: any, b: any) => (b.inferred_confidence ?? 0) - (a.inferred_confidence ?? 0));
       sections.push(`## ${title}\n\n${kindFiles[0].content}`);
+      citations.push({ layer: kind, sourceType: kindFiles[0].source_type });
     } else {
       sections.push(`## ${title}\n\n${kindFiles.map((f: any) => f.content).join('\n\n')}`);
+      for (const f of kindFiles) {
+        citations.push({ layer: kind, sourceType: f.source_type });
+      }
     }
   }
-  return sections.join('\n\n');
+  return { prompt: sections.join('\n\n'), citations };
 }
 
 // Simple in-memory rate limiter
@@ -106,7 +117,7 @@ export async function POST(request: Request) {
     if (agentConfig.provider === 'hosted') {
       apiKey = process.env.STAIPLER_ANTHROPIC_API_KEY ?? null;
     } else if (agentConfig.api_key_encrypted) {
-      try { apiKey = decrypt(agentConfig.api_key_encrypted); } catch {}
+      try { apiKey = decrypt(agentConfig.api_key_encrypted); } catch { /* Decryption failed — will be caught by the !apiKey check below */ }
     }
 
     if (!apiKey) {
@@ -119,7 +130,9 @@ export async function POST(request: Request) {
       .select('*')
       .eq('project_id', deployToken.project_id);
 
-    const systemPrompt = files && files.length > 0 ? compileSystemPrompt(files) : '';
+    const compiled = files && files.length > 0 ? compileSystemPromptWithCitations(files) : { prompt: '', citations: [] };
+    const systemPrompt = compiled.prompt;
+    const citations = compiled.citations;
 
     // Determine provider (hosted always uses Anthropic)
     const provider = agentConfig.provider === 'hosted' ? 'anthropic' : agentConfig.provider;
@@ -130,6 +143,11 @@ export async function POST(request: Request) {
     const readable = new ReadableStream({
       async start(controller) {
         try {
+          // Send source citations before streaming response content
+          if (citations.length > 0) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ citations })}\n\n`));
+          }
+
           if (provider === 'anthropic') {
             const anthropic = new Anthropic({ apiKey });
             const stream = anthropic.messages.stream({

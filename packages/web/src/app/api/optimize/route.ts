@@ -106,6 +106,7 @@ export async function POST(request: Request) {
       .single();
 
     const generated: { kind: string; content: string }[] = [];
+    const reasoning: { kind: string; prompt: string; contextUsed: string; contextSource: string; result: 'success' | 'failed'; error?: string }[] = [];
 
     // Generate each missing layer
     for (const kind of missingLayers) {
@@ -154,6 +155,14 @@ Generate the ${kind} layer now:`;
 
         generated.push({ kind, content });
 
+        reasoning.push({
+          kind,
+          prompt,
+          contextUsed: existingContext.slice(0, 500) + (existingContext.length > 500 ? '...' : ''),
+          contextSource: candidates && candidates.length > 0 ? 'layer_candidates' : 'project_files',
+          result: 'success',
+        });
+
         // Save as AI-generated — explicitly marked as lowest authority tier
         await supabase.from('project_files').insert({
           project_id: projectId,
@@ -166,9 +175,18 @@ Generate the ${kind} layer now:`;
           content,
         });
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
         console.error(`Failed to generate ${kind}:`, err);
+        reasoning.push({
+          kind,
+          prompt,
+          contextUsed: existingContext.slice(0, 500),
+          contextSource: candidates && candidates.length > 0 ? 'layer_candidates' : 'project_files',
+          result: 'failed',
+          error: errorMsg,
+        });
       } finally {
-        try { execSync(`rm -f '${promptFile}'`); } catch {}
+        try { execSync(`rm -f '${promptFile}'`); } catch { /* temp file cleanup — non-critical */ }
       }
     }
 
@@ -212,6 +230,15 @@ Generate the ${kind} layer now:`;
       generated: generated.map(g => g.kind),
       readinessScore,
       grade,
+      // Full reasoning chain — every prompt, context selection, and result visible
+      reasoning: reasoning.map(r => ({
+        kind: r.kind,
+        contextSource: r.contextSource,
+        contextUsed: r.contextUsed,
+        promptSent: r.prompt,
+        result: r.result,
+        error: r.error,
+      })),
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Optimize failed' }, { status: 500 });

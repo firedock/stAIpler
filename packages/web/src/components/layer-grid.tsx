@@ -269,7 +269,18 @@ function authorityBadge(status: string | undefined) {
   }
 }
 
-export function LayerGrid({ layers, bundleSections }: { layers: LayerData[]; bundleSections?: { layer: string; status: string }[] }) {
+const METHOD_LABELS_SHORT: Record<string, string> = {
+  filename: 'by name',
+  filetype: 'by type',
+  heuristic: 'by content',
+  semantic: 'by AI',
+};
+
+export function LayerGrid({ layers, bundleSections, layerCandidates }: {
+  layers: LayerData[];
+  bundleSections?: { layer: string; status: string }[];
+  layerCandidates?: { layer: string; confidence: number; extraction_method: string }[];
+}) {
   const [selectedLayer, setSelectedLayer] = useState<LayerData | null>(null);
 
   // Build a map of layer → authority status from the compiled bundle
@@ -280,6 +291,24 @@ export function LayerGrid({ layers, bundleSections }: { layers: LayerData[]; bun
     }
   }
 
+  // Build a map of layer → dominant extraction method + avg confidence
+  const extractionMap = new Map<string, { method: string; avgConfidence: number }>();
+  if (layerCandidates) {
+    const byLayer = new Map<string, typeof layerCandidates>();
+    for (const c of layerCandidates) {
+      if (!byLayer.has(c.layer)) byLayer.set(c.layer, []);
+      byLayer.get(c.layer)!.push(c);
+    }
+    for (const [layer, candidates] of byLayer) {
+      const methods = candidates.map(c => c.extraction_method);
+      const dominant = methods.sort((a, b) =>
+        methods.filter(m => m === b).length - methods.filter(m => m === a).length
+      )[0];
+      const avgConf = candidates.reduce((s, c) => s + c.confidence, 0) / candidates.length;
+      extractionMap.set(layer, { method: dominant, avgConfidence: avgConf });
+    }
+  }
+
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -287,6 +316,7 @@ export function LayerGrid({ layers, bundleSections }: { layers: LayerData[]; bun
           const color = scoreColor(layer.score);
           const importance = IMPORTANCE[layer.kind] ?? 'optional';
           const authority = authorityMap.get(layer.kind);
+          const extraction = extractionMap.get(layer.kind);
 
           return (
             <button
@@ -306,6 +336,11 @@ export function LayerGrid({ layers, bundleSections }: { layers: LayerData[]; bun
                 <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color }}>{layer.status}</span>
                 {layer.fileCount > 0 && <span className="text-[10px] text-slate-600">{layer.fileCount} files</span>}
               </div>
+              {extraction && (
+                <div className="mt-1.5 text-[9px] text-slate-700">
+                  Found {METHOD_LABELS_SHORT[extraction.method] ?? extraction.method} · {Math.round(extraction.avgConfidence * 100)}% avg
+                </div>
+              )}
             </button>
           );
         })}

@@ -115,10 +115,14 @@ function detectConflicts(candidates: LayerCandidate[]): ConflictRecord[] {
           (a.confidence === b.confidence &&
             a.provenance.extractedAt > b.provenance.extractedAt);
 
+        // Show what actually conflicts — content snippets from both sides
+        const aSnippet = a.content.slice(0, 120).replace(/\n/g, ' ').trim();
+        const bSnippet = b.content.slice(0, 120).replace(/\n/g, ' ').trim();
+
         conflicts.push({
           candidateA: a.id,
           candidateB: b.id,
-          description: `Both "${a.provenance.sourceTitle}" and "${b.provenance.sourceTitle}" provide high-confidence content for this layer`,
+          description: `"${a.provenance.sourceTitle}" says: "${aSnippet}..." while "${b.provenance.sourceTitle}" says: "${bSnippet}..."`,
           resolution: aWins ? 'a-wins' : 'b-wins',
           resolvedBy: a.confidence !== b.confidence ? 'confidence' : 'recency',
         });

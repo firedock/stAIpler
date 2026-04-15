@@ -105,7 +105,9 @@ export function QuickProofCard({ projectId, projectName }: QuickProofCardProps) 
               } else if (msg.type === 'error') {
                 setError(msg.message);
               }
-            } catch {}
+            } catch {
+              // Partial SSE chunk during streaming — expected, not an error
+            }
           }
         }
       }

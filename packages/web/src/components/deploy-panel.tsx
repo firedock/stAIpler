@@ -10,6 +10,7 @@ interface DeployPanelProps {
 export function DeployPanel({ projectId, hasAgentConfig }: DeployPanelProps) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -23,11 +24,12 @@ export function DeployPanel({ projectId, hasAgentConfig }: DeployPanelProps) {
     fetch(`/api/widget/token?projectId=${projectId}`)
       .then(r => r.json())
       .then(data => { if (data.token) setToken(data.token); })
-      .catch(() => {});
+      .catch(err => { setError('Could not load deploy token'); });
   }, [projectId, hasAgentConfig]);
 
   async function handleGenerate() {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/widget/token', {
         method: 'POST',
@@ -36,7 +38,10 @@ export function DeployPanel({ projectId, hasAgentConfig }: DeployPanelProps) {
       });
       const data = await res.json();
       if (data.token) setToken(data.token);
-    } catch {}
+      else setError(data.error ?? 'Failed to generate deploy token');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not connect to server');
+    }
     setLoading(false);
   }
 

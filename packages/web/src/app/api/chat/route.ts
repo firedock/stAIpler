@@ -30,6 +30,9 @@ interface AttributionEntry {
   path: string;
   reason: string;
   confidence: number;
+  sourceType?: string;
+  status: 'used' | 'rejected';
+  rejectionReason?: string;
 }
 
 function compileSystemPromptWithAttribution(files: any[]): { prompt: string; attribution: AttributionEntry[] } {
@@ -72,7 +75,22 @@ function compileSystemPromptWithAttribution(files: any[]): { prompt: string; att
         path: kindFiles[0].relative_path,
         reason: REASON_MAP[kind] ?? 'Project context',
         confidence: kindFiles[0].inferred_confidence ?? 0,
+        sourceType: kindFiles[0].source_type,
+        status: 'used',
       });
+      // Track rejected files for this layer (last-wins strategy)
+      for (let i = 1; i < kindFiles.length; i++) {
+        attribution.push({
+          layer: kind,
+          fileName: kindFiles[i].file_name,
+          path: kindFiles[i].relative_path,
+          reason: REASON_MAP[kind] ?? 'Project context',
+          confidence: kindFiles[i].inferred_confidence ?? 0,
+          sourceType: kindFiles[i].source_type,
+          status: 'rejected',
+          rejectionReason: `Lower confidence than "${kindFiles[0].file_name}" (${Math.round((kindFiles[0].inferred_confidence ?? 0) * 100)}% vs ${Math.round((kindFiles[i].inferred_confidence ?? 0) * 100)}%)`,
+        });
+      }
     } else {
       sections.push(`## ${title}\n\n${kindFiles.map((f: any) => f.content).join('\n\n')}`);
       for (const f of kindFiles) {
@@ -82,6 +100,8 @@ function compileSystemPromptWithAttribution(files: any[]): { prompt: string; att
           path: f.relative_path,
           reason: REASON_MAP[kind] ?? 'Project context',
           confidence: f.inferred_confidence ?? 0,
+          sourceType: f.source_type,
+          status: 'used',
         });
       }
     }

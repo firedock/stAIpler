@@ -112,6 +112,7 @@ function layoutNodes(clusters: MemCluster[], nodes: MemNode[]): MemNode[] {
 export function MemoryMap({ projectId }: MemoryMapProps) {
   const [data, setData] = useState<MemoryGraphData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<MemNode | null>(null);
   const [viewMode, setViewMode] = useState<'layer' | 'source' | 'all'>('layer');
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
@@ -126,7 +127,7 @@ export function MemoryMap({ projectId }: MemoryMapProps) {
         json.nodes = layoutNodes(json.clusters, json.nodes);
         setData(json);
       } catch (err) {
-        console.error('Failed to load memory graph:', err);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load memory graph');
       }
       setLoading(false);
     }
@@ -137,6 +138,17 @@ export function MemoryMap({ projectId }: MemoryMapProps) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-sm text-slate-600 animate-pulse">Loading memory map...</div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-64 bg-[#0d0d1a] border border-red-500/20 rounded-xl">
+        <div className="text-center">
+          <p className="text-sm text-red-400">{loadError}</p>
+          <p className="text-[10px] text-slate-600 mt-1">Memory map could not be loaded</p>
+        </div>
       </div>
     );
   }

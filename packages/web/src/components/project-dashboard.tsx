@@ -38,11 +38,13 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
   const [knowledgeView, setKnowledgeView] = useState<'journey' | 'files'>('journey');
   const [optimizing, setOptimizing] = useState(false);
   const [optimizeResult, setOptimizeResult] = useState<{ generated: string[]; readinessScore: number; grade: string } | null>(null);
+  const [optimizeError, setOptimizeError] = useState<string | null>(null);
   const router = useRouter();
 
   async function handleOptimize() {
     setOptimizing(true);
     setOptimizeResult(null);
+    setOptimizeError(null);
     try {
       const res = await fetch('/api/optimize', {
         method: 'POST',
@@ -53,8 +55,12 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
       if (data.success) {
         setOptimizeResult(data);
         setTimeout(() => router.refresh(), 1500);
+      } else {
+        setOptimizeError(data.error ?? 'Optimization failed');
       }
-    } catch {}
+    } catch (err) {
+      setOptimizeError(err instanceof Error ? err.message : 'Failed to connect to optimization service');
+    }
     setOptimizing(false);
   }
 
@@ -111,6 +117,20 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
           </Link>
         </div>
       </div>
+
+      {/* Optimize error */}
+      {optimizeError && (
+        <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20">
+          <div className="flex items-center gap-3">
+            <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+            <div>
+              <span className="text-sm font-semibold text-red-300">Optimization failed</span>
+              <span className="text-sm text-red-400 ml-2">{optimizeError}</span>
+            </div>
+            <button onClick={() => setOptimizeError(null)} className="ml-auto text-red-400 hover:text-red-300 text-xs">Dismiss</button>
+          </div>
+        </div>
+      )}
 
       {/* Optimize result */}
       {optimizeResult && (
@@ -208,7 +228,7 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
           <h3 className="text-lg font-semibold">Layer Coverage</h3>
           <span className="text-xs text-slate-600">{present}/{LAYER_TYPES.length} layers active</span>
         </div>
-        <LayerGrid layers={layers} bundleSections={compiledBundle?.sections} />
+        <LayerGrid layers={layers} bundleSections={compiledBundle?.sections} layerCandidates={layerCandidates} />
       </section>
 
       {/* Memory Map */}

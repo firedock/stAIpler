@@ -28,7 +28,9 @@ export function ChatWithDemo({ projectId, projectName, isDemo, agentConfig }: Ch
       try {
         const data = JSON.parse(stored);
         setInitialPrompt(data.prompt);
-      } catch {}
+      } catch {
+        // Corrupted session storage entry — ignore and proceed without initial prompt
+      }
       // Clear after read — one-time use
       sessionStorage.removeItem(key);
     }

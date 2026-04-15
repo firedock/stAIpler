@@ -429,7 +429,11 @@ export function AgentSetupWizard() {
         }));
         window.location.href = data.authUrl;
       }
-    } catch {}
+    } catch (err) {
+      // Google Drive OAuth redirect failed — user sees the wizard stuck on this step
+      // rather than silently doing nothing
+      alert(err instanceof Error ? err.message : 'Could not connect to Google Drive');
+    }
   }
 
   async function handleFileUpload(files: FileList) {

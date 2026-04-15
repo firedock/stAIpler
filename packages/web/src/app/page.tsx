@@ -4,9 +4,10 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen">
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center bg-[#06060e]/80 backdrop-blur-xl border-b border-white/[0.04]">
-        <span className="text-lg font-bold">st<span className="text-purple-400">AI</span>pler</span>
-        <div className="flex items-center gap-6">
+      <nav className="fixed top-0 left-0 right-0 z-50 px-6 pt-20 pb-6 flex justify-between items-center bg-[#06060e]/80 backdrop-blur-xl border-b border-white/[0.04]">
+        <img src="/staipler-logo.svg" alt="stAIpler" className="h-28 w-auto absolute left-1/2 -translate-x-1/2 top-12" />
+        <div className="w-0" />
+        <div className="flex items-center gap-6 ml-auto">
           <a href="#how-it-works" className="text-sm text-slate-400 hover:text-slate-200 transition hidden sm:block">How It Works</a>
           <a href="#taxonomy" className="text-sm text-slate-400 hover:text-slate-200 transition hidden sm:block">Taxonomy</a>
           <Link href="/login" className="text-sm text-slate-400 hover:text-slate-200 transition">Log in</Link>
@@ -15,9 +16,9 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-20 relative">
+      <section className="min-h-screen flex flex-col items-center justify-center text-center px-6 pt-56 relative">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(124,58,237,0.08)_0%,transparent_70%)] pointer-events-none" />
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/8 border border-purple-500/15 text-sm text-purple-400 mb-6">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-500/8 border border-purple-500/15 text-sm text-purple-400 mb-6 -translate-x-8">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           Open Source
         </div>

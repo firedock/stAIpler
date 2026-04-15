@@ -59,20 +59,49 @@ const CLASSIFICATION_CONFIG: Record<string, { label: string; color: string; bgCo
   },
 };
 
-function confidenceBar(initial: number, effective: number) {
+const HALF_LIFE_DAYS: Record<string, number> = {
+  'fact': 90,
+  'inference': 30,
+  'heuristic': 14,
+  'unresolved-question': Infinity,
+};
+
+const DECAY_THRESHOLD = 0.15;
+
+function daysUntilDecay(classification: string, effective: number, initial: number): string {
+  const halfLife = HALF_LIFE_DAYS[classification];
+  if (!halfLife || halfLife === Infinity) return 'never';
+  if (effective <= DECAY_THRESHOLD) return 'already faded';
+  // Solve: threshold = effective * 0.5^(days/halfLife)
+  // days = halfLife * log2(effective / threshold)
+  const days = Math.round(halfLife * Math.log2(effective / DECAY_THRESHOLD));
+  if (days <= 0) return 'fading now';
+  if (days === 1) return '~1 day';
+  return `~${days} days`;
+}
+
+function confidenceBar(initial: number, effective: number, classification: string) {
   const pct = Math.round(effective * 100);
   const decay = initial > 0 ? Math.round((1 - effective / initial) * 100) : 0;
   const barColor = effective >= 0.7 ? 'bg-emerald-500' : effective >= 0.4 ? 'bg-amber-500' : 'bg-red-500';
+  const fadeTime = daysUntilDecay(classification, effective, initial);
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
-        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+    <div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-[10px] text-slate-500 shrink-0 text-right">
+          {pct}%
+          {decay > 0 && <span className="text-red-400/60"> -{decay}%</span>}
+        </span>
       </div>
-      <span className="text-[10px] text-slate-500 shrink-0 w-12 text-right">
-        {pct}%
-        {decay > 0 && <span className="text-red-400/60"> -{decay}%</span>}
-      </span>
+      {classification !== 'unresolved-question' && (
+        <div className="text-[9px] text-slate-700 mt-0.5">
+          Fades in {fadeTime} · {HALF_LIFE_DAYS[classification]}-day half-life · threshold {Math.round(DECAY_THRESHOLD * 100)}%
+        </div>
+      )}
     </div>
   );
 }
@@ -94,6 +123,7 @@ interface HandoffsPanelProps {
 export function HandoffsPanel({ projectId }: HandoffsPanelProps) {
   const [handoffs, setHandoffs] = useState<HandoffPacket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showDecayed, setShowDecayed] = useState(false);
   const [selectedHandoff, setSelectedHandoff] = useState<HandoffPacket | null>(null);
 
@@ -104,8 +134,12 @@ export function HandoffsPanel({ projectId }: HandoffsPanelProps) {
         if (res.ok) {
           const data = await res.json();
           setHandoffs(data.handoffs ?? []);
+        } else {
+          setFetchError('Failed to load operational wisdom');
         }
-      } catch {}
+      } catch (err) {
+        setFetchError(err instanceof Error ? err.message : 'Could not connect to server');
+      }
       setLoading(false);
     }
     fetchHandoffs();
@@ -132,6 +166,15 @@ export function HandoffsPanel({ projectId }: HandoffsPanelProps) {
     return (
       <div className="bg-[#0d0d1a] border border-white/[0.04] rounded-xl p-6 text-center">
         <p className="text-xs text-slate-600 animate-pulse">Loading operational wisdom...</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="bg-[#0d0d1a] border border-red-500/20 rounded-xl p-6 text-center">
+        <p className="text-sm text-red-400">{fetchError}</p>
+        <p className="text-[10px] text-slate-600 mt-1">Operational wisdom could not be loaded. The rest of the dashboard is unaffected.</p>
       </div>
     );
   }
@@ -204,7 +247,7 @@ export function HandoffsPanel({ projectId }: HandoffsPanelProps) {
                   </div>
                   <p className="text-[12px] text-slate-300 leading-relaxed">{handoff.content}</p>
                   <div className="mt-2">
-                    {confidenceBar(handoff.initialConfidence, handoff.effectiveConfidence)}
+                    {confidenceBar(handoff.initialConfidence, handoff.effectiveConfidence, handoff.classification)}
                   </div>
 
                   {/* Expanded detail */}
