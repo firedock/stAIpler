@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extractFromLogs } from '@/lib/knowledge/extract';
+import { reconcileAtoms } from '@/lib/knowledge/reconcile';
 
 /**
  * POST /api/knowledge/extract
@@ -41,5 +42,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error, ...result }, { status: 500 });
   }
 
-  return NextResponse.json(result);
+  // Chain reconcile when extract produced new atoms so embeddings + similarity
+  // surfacing happen without a second user click. Failures don't block the
+  // extract response — reconcile has its own failed-run visibility.
+  let reconcile = null as Awaited<ReturnType<typeof reconcileAtoms>> | null;
+  if (result.extractedCount > 0) {
+    try {
+      reconcile = await reconcileAtoms(supabase, projectId);
+    } catch {
+      reconcile = null;
+    }
+  }
+
+  return NextResponse.json({ ...result, reconcile });
 }
