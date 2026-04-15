@@ -26,7 +26,7 @@ export type ExclusionReason =
   | 'source_override'
   | 'manually_excluded';
 
-interface AtomRow {
+export interface InjectAtomRow {
   id: string;
   status: 'candidate' | 'provisional' | 'stable' | 'deprecated' | 'contradicted';
   source_authority: 'assistant' | 'user' | 'source_document' | 'mixed';
@@ -37,6 +37,7 @@ interface AtomRow {
   superseded_by: string | null;
   content: string;
 }
+type AtomRow = InjectAtomRow;
 
 interface PromptViewRow {
   project_id: string;
@@ -60,7 +61,7 @@ export interface InjectResult {
  * Classify why an atom was not included in the compact prompt view.
  * Order matters: earlier reasons take precedence.
  */
-function classifyExclusion(atom: AtomRow): ExclusionReason | null {
+export function classifyExclusion(atom: AtomRow): ExclusionReason | null {
   if (atom.status === 'deprecated') {
     return atom.superseded_by ? 'superseded' : null; // skip: no reason to inject at all
   }

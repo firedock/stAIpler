@@ -23,7 +23,7 @@ export interface PromoteResult {
   error?: string;
 }
 
-interface CandidateAtom {
+export interface CandidateAtom {
   id: string;
   project_id: string;
   status: string;
@@ -37,7 +37,7 @@ interface CandidateAtom {
  * Determine whether a candidate qualifies for auto-promotion to provisional,
  * and which rule fires. Returns null if the atom stays a candidate.
  */
-function pickRule(atom: CandidateAtom): string | null {
+export function pickRule(atom: CandidateAtom): string | null {
   if (atom.status !== 'candidate') return null;
   if (atom.source_authority === 'source_document') return 'source_document_authority';
   if (atom.source_authority === 'user') return 'user_authority';

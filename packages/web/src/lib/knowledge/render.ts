@@ -23,7 +23,7 @@ export interface RenderResult {
   error?: string;
 }
 
-interface EligibleAtom {
+export interface EligibleAtom {
   id: string;
   concept_slug: string;
   atom_type: 'claim' | 'heuristic' | 'question' | 'answer' | 'decision_note';
@@ -66,7 +66,7 @@ function titleForConcept(slug: string): string {
     .join(' ');
 }
 
-function renderArticle(slug: string, atoms: EligibleAtom[]): { title: string; body: string; atomIds: string[] } {
+export function renderArticle(slug: string, atoms: EligibleAtom[]): { title: string; body: string; atomIds: string[] } {
   // Deterministic sort — never by timestamp.
   const sorted = [...atoms].sort((a, b) => a.id.localeCompare(b.id));
 
@@ -110,7 +110,7 @@ function renderArticle(slug: string, atoms: EligibleAtom[]): { title: string; bo
   };
 }
 
-function renderPromptView(atoms: EligibleAtom[]): { body: string; tokens: number; atomIds: string[] } {
+export function renderPromptView(atoms: EligibleAtom[]): { body: string; tokens: number; atomIds: string[] } {
   if (atoms.length === 0) {
     return { body: '', tokens: 0, atomIds: [] };
   }
