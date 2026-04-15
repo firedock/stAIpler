@@ -8,6 +8,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
 import { applyDecay, formatHandoffsForPrompt } from '@staipler/core';
 import type { HandoffPacket } from '@staipler/core';
+import { injectKnowledgeLayer, formatKnowledgeSection } from '@/lib/knowledge/inject';
 
 const HOSTED_MONTHLY_TOKEN_CAP = 50_000;
 
@@ -120,6 +121,7 @@ async function streamClaudeCli(
   messages: { role: string; content: string }[],
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
+  onComplete: (assistantText: string) => void,
 ) {
   const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content ?? '';
   const tmpDir = '/tmp/staipler-chat';
@@ -133,6 +135,8 @@ async function streamClaudeCli(
     args.push('--system-prompt', systemPrompt);
   }
 
+  let buffer = '';
+
   return new Promise<void>((resolve, reject) => {
     const proc = spawn('claude', args, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -143,6 +147,7 @@ async function streamClaudeCli(
 
     proc.stdout.on('data', (data: Buffer) => {
       const text = data.toString();
+      buffer += text;
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
     });
 
@@ -151,12 +156,14 @@ async function streamClaudeCli(
     proc.on('close', () => {
       controller.enqueue(encoder.encode('data: [DONE]\n\n'));
       controller.close();
+      onComplete(buffer);
       resolve();
     });
 
     proc.on('error', (err) => {
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: err.message })}\n\n`));
       controller.close();
+      onComplete(buffer);
       resolve();
     });
   });
@@ -170,6 +177,7 @@ async function streamAnthropic(
   messages: { role: string; content: string }[],
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
+  onComplete: (assistantText: string) => void,
 ) {
   const anthropic = new Anthropic({ apiKey });
   const stream = anthropic.messages.stream({
@@ -179,14 +187,17 @@ async function streamAnthropic(
     messages: messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
   });
 
+  let buffer = '';
   for await (const event of stream) {
     if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+      buffer += event.delta.text;
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`));
     }
   }
 
   controller.enqueue(encoder.encode('data: [DONE]\n\n'));
   controller.close();
+  onComplete(buffer);
 }
 
 // Provider: OpenAI API
@@ -197,6 +208,7 @@ async function streamOpenAI(
   messages: { role: string; content: string }[],
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
+  onComplete: (assistantText: string) => void,
 ) {
   const openai = new OpenAI({ apiKey });
   const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
@@ -215,15 +227,18 @@ async function streamOpenAI(
     stream: true,
   });
 
+  let buffer = '';
   for await (const chunk of stream) {
     const text = chunk.choices[0]?.delta?.content;
     if (text) {
+      buffer += text;
       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
     }
   }
 
   controller.enqueue(encoder.encode('data: [DONE]\n\n'));
   controller.close();
+  onComplete(buffer);
 }
 
 export async function POST(request: Request) {
@@ -254,7 +269,17 @@ export async function POST(request: Request) {
         systemPrompt = compiled.prompt;
         attribution = compiled.attribution;
 
-        // Inject active handoffs below source knowledge
+        // Knowledge layer — injected below source-grounded context, above handoffs.
+        // Reads the compact prompt view built by the render stage and records
+        // per-atom inclusion/exclusion decisions for this compile.
+        // See packages/web/docs/knowledge-v1.md §6.
+        const knowledgeResult = await injectKnowledgeLayer(supabase, projectId, null);
+        const knowledgeSection = formatKnowledgeSection(knowledgeResult.bodyMd);
+        if (knowledgeSection) {
+          systemPrompt = systemPrompt + '\n\n' + knowledgeSection;
+        }
+
+        // Inject active handoffs below knowledge
         const { data: handoffRows } = await supabase
           .from('session_handoffs')
           .select('*')
@@ -351,15 +376,45 @@ export async function POST(request: Request) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ attribution })}\n\n`));
           }
 
+          const lastUserPrompt = messages.filter((m: any) => m.role === 'user').pop()?.content ?? '';
+          const logMode = mode === 'control' ? 'control' : 'staipler';
+
+          if (lastUserPrompt && projectId) {
+            await supabase.from('project_logs').insert({
+              project_id: projectId,
+              user_id: user.id,
+              role: 'user',
+              content: lastUserPrompt,
+              mode: logMode,
+              provider: resolvedProvider,
+              model: resolvedModel,
+              token_estimate: Math.ceil(lastUserPrompt.length / 4),
+            });
+          }
+
+          const onComplete = (assistantText: string) => {
+            if (!assistantText || !projectId) return;
+            supabase.from('project_logs').insert({
+              project_id: projectId,
+              user_id: user.id,
+              role: 'assistant',
+              content: assistantText,
+              mode: logMode,
+              provider: resolvedProvider,
+              model: resolvedModel,
+              token_estimate: Math.ceil(assistantText.length / 4),
+            }).then(() => {});
+          };
+
           switch (resolvedProvider) {
             case 'claude-cli':
-              await streamClaudeCli(systemPrompt, messages, controller, encoder);
+              await streamClaudeCli(systemPrompt, messages, controller, encoder, onComplete);
               break;
             case 'anthropic':
-              await streamAnthropic(resolvedKey!, resolvedModel, systemPrompt, messages, controller, encoder);
+              await streamAnthropic(resolvedKey!, resolvedModel, systemPrompt, messages, controller, encoder, onComplete);
               break;
             case 'openai':
-              await streamOpenAI(resolvedKey!, resolvedModel, systemPrompt, messages, controller, encoder);
+              await streamOpenAI(resolvedKey!, resolvedModel, systemPrompt, messages, controller, encoder, onComplete);
               break;
             default:
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `Unknown provider: ${resolvedProvider}` })}\n\n`));
