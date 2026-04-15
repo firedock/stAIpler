@@ -11,6 +11,8 @@ import { injectCommand } from './commands/inject.js';
 import { initCommand } from './commands/init.js';
 import { evalProjectCommand } from './commands/eval-project.js';
 import { memoryCommand } from './commands/memory.js';
+import { loginCommand } from './commands/login.js';
+import { pullCommand } from './commands/pull.js';
 
 const program = new Command()
   .name('staipler')
@@ -28,5 +30,7 @@ program.addCommand(ciCommand);
 program.addCommand(injectCommand);
 program.addCommand(evalProjectCommand);
 program.addCommand(memoryCommand);
+program.addCommand(loginCommand);
+program.addCommand(pullCommand);
 
 program.parse();

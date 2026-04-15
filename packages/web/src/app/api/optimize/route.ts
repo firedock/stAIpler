@@ -39,6 +39,22 @@ export async function POST(request: Request) {
 
     const { projectId } = await request.json();
 
+    // Guard: refuse to optimize without source material.
+    // The optimizer is a gap-filler, not a primary author. If no data sources or
+    // files exist, generating layers from nothing produces hallucinated content
+    // that misrepresents the project's actual context.
+    const [{ count: sourceCount }, { count: fileCount }] = await Promise.all([
+      supabase.from('data_sources').select('id', { count: 'exact', head: true }).eq('project_id', projectId),
+      supabase.from('project_files').select('id', { count: 'exact', head: true }).eq('project_id', projectId),
+    ]);
+
+    if ((sourceCount ?? 0) === 0 && (fileCount ?? 0) === 0) {
+      return NextResponse.json({
+        error: 'Cannot optimize an empty project. Connect at least one data source (GitHub, Google Drive, or upload files) so the optimizer has source material to work with.',
+        code: 'NO_SOURCE_MATERIAL',
+      }, { status: 400 });
+    }
+
     // Determine which layers need generation
     // Prefer the evidence pipeline's bundle (gaps field) over project_files
     const bundle = await getLatestBundle(supabase, projectId);

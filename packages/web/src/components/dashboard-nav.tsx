@@ -16,8 +16,8 @@ export function DashboardNav({ email }: { email: string }) {
   return (
     <nav className="border-b border-white/[0.04] px-6 py-3 flex items-center justify-between bg-[#06060e]/80 backdrop-blur-xl sticky top-0 z-50">
       <div className="flex items-center gap-8">
-        <Link href="/dashboard" className="text-lg font-bold">
-          st<span className="text-purple-400">AI</span>pler
+        <Link href="/dashboard" className="flex items-center" title="stAIpler">
+          <img src="/staipler-logo.svg" alt="stAIpler" className="h-7 w-auto" />
         </Link>
         <div className="flex gap-1">
           <Link href="/dashboard" className="px-3 py-1.5 rounded-md text-sm text-slate-400 hover:text-slate-200 hover:bg-white/5 transition">
