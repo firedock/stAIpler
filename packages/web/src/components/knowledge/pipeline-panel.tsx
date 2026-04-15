@@ -45,6 +45,8 @@ export function KnowledgePipelinePanel({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<Stage | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractMsg, setExtractMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,19 +64,60 @@ export function KnowledgePipelinePanel({ projectId }: { projectId: string }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const runExtract = useCallback(async () => {
+    setExtracting(true);
+    setExtractMsg(null);
+    try {
+      const res = await fetch('/api/knowledge/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setExtractMsg(`Extract failed: ${data.error ?? res.statusText}`);
+      } else {
+        setExtractMsg(
+          data.extractedCount > 0
+            ? `Extracted ${data.extractedCount} candidate atom${data.extractedCount === 1 ? '' : 's'} from ${data.logCount} log rows.`
+            : `Scanned ${data.logCount} log rows. Nothing durable extracted.`,
+        );
+      }
+    } catch (err) {
+      setExtractMsg(err instanceof Error ? err.message : 'Extract failed');
+    }
+    setExtracting(false);
+    await load();
+  }, [projectId, load]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div className="text-[11px] text-slate-400">
           {loading ? 'Loading…' : stages ? `${stages.reduce((s, x) => s + x.runCount, 0)} runs recorded` : ''}
         </div>
-        <button
-          onClick={load}
-          className="text-[11px] text-purple-300 hover:text-purple-200 transition"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={runExtract}
+            disabled={extracting}
+            className="text-[11px] px-2.5 py-1 rounded-md border border-purple-500/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/20 transition disabled:opacity-50"
+          >
+            {extracting ? 'Extracting…' : 'Extract now'}
+          </button>
+          <button
+            onClick={load}
+            className="text-[11px] text-purple-300 hover:text-purple-200 transition"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {extractMsg && (
+        <p className="text-[11px] text-slate-300 mb-3 bg-white/[0.04] border border-white/10 rounded-md px-2.5 py-1.5">
+          {extractMsg}
+        </p>
+      )}
 
       {error && <p className="text-sm text-rose-300 mb-4">{error}</p>}
 
