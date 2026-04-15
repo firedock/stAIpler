@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extractFromLogs } from '@/lib/knowledge/extract';
 import { reconcileAtoms } from '@/lib/knowledge/reconcile';
+import { applyPromotionRules } from '@/lib/knowledge/promote';
 
 /**
  * POST /api/knowledge/extract
@@ -42,17 +43,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error, ...result }, { status: 500 });
   }
 
-  // Chain reconcile when extract produced new atoms so embeddings + similarity
-  // surfacing happen without a second user click. Failures don't block the
-  // extract response — reconcile has its own failed-run visibility.
+  // Chain reconcile + promote when extract produced new atoms. Failures
+  // don't block the extract response — each stage has its own failed-run
+  // visibility in the pipeline panel.
   let reconcile = null as Awaited<ReturnType<typeof reconcileAtoms>> | null;
+  let promote = null as Awaited<ReturnType<typeof applyPromotionRules>> | null;
   if (result.extractedCount > 0) {
-    try {
-      reconcile = await reconcileAtoms(supabase, projectId);
-    } catch {
-      reconcile = null;
-    }
+    try { reconcile = await reconcileAtoms(supabase, projectId); } catch { /* recorded as failed run */ }
+    try { promote = await applyPromotionRules(supabase, projectId); } catch { /* recorded as failed run */ }
   }
 
-  return NextResponse.json({ ...result, reconcile });
+  return NextResponse.json({ ...result, reconcile, promote });
 }
