@@ -103,17 +103,83 @@ export function ReviewQueue({ projectId }: { projectId: string }) {
     );
   }
 
-  const placeholderActions = [
-    { id: 'approve', label: 'Approve', shortcut: 'a', onInvoke: () => alert('Wired in Step 7') },
-    { id: 'merge', label: 'Merge', shortcut: 'm', onInvoke: () => alert('Wired in Step 7') },
-    { id: 'edit', label: 'Edit', shortcut: 'e', onInvoke: () => alert('Wired in Step 7') },
-    { id: 'reject', label: 'Reject', shortcut: 'r', destructive: true, onInvoke: () => alert('Wired in Step 7') },
-  ];
+  async function runAction(
+    atomId: string,
+    action: 'approve' | 'reject' | 'edit' | 'promote' | 'demote' | 'merge',
+    extra: Record<string, unknown> = {},
+  ) {
+    try {
+      const res = await fetch(`/api/knowledge/atoms/${atomId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error ?? `Action '${action}' failed`);
+        return;
+      }
+      await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : `Action '${action}' failed`);
+    }
+  }
+
+  function actionsFor(atomId: string, peerIds: string[]) {
+    return [
+      {
+        id: 'approve',
+        label: 'Approve',
+        shortcut: 'a',
+        onInvoke: () => runAction(atomId, 'approve'),
+      },
+      {
+        id: 'merge',
+        label: 'Merge',
+        shortcut: 'm',
+        onInvoke: () => {
+          let peerId = peerIds[0];
+          if (peerIds.length > 1) {
+            const picked = prompt(
+              `Merge this atom INTO which peer atom id?\nOptions:\n${peerIds.map(id => '  ' + id).join('\n')}`,
+            );
+            if (!picked) return;
+            peerId = picked.trim();
+          }
+          if (!peerId) {
+            alert('Merge requires a near-duplicate pair. Trigger Reconcile first.');
+            return;
+          }
+          runAction(atomId, 'merge', { peerAtomId: peerId });
+        },
+      },
+      {
+        id: 'edit',
+        label: 'Edit',
+        shortcut: 'e',
+        onInvoke: () => {
+          const current = atomById[atomId]?.content ?? '';
+          const next = prompt('Edit atom content:', current);
+          if (next === null) return;
+          const trimmed = next.trim();
+          if (!trimmed || trimmed === current) return;
+          runAction(atomId, 'edit', { content: trimmed });
+        },
+      },
+      {
+        id: 'reject',
+        label: 'Reject',
+        shortcut: 'r',
+        destructive: true,
+        onInvoke: () => runAction(atomId, 'reject'),
+      },
+    ];
+  }
 
   return (
     <div className="space-y-4">
       <div className="text-[11px] text-slate-400">
-        {atoms.length} atom{atoms.length === 1 ? '' : 's'} pending · actions become live in Step 7
+        {atoms.length} atom{atoms.length === 1 ? '' : 's'} pending review · actions: a approve · m merge · e edit · r reject
       </div>
 
       {atoms.map(atom => {
@@ -121,14 +187,18 @@ export function ReviewQueue({ projectId }: { projectId: string }) {
         return (
           <div key={atom.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
             {pairs.length === 0 ? (
-              <ObjectCard object={atomToVisible(atom, { actions: placeholderActions })} />
+              <ObjectCard
+                object={atomToVisible(atom, { actions: actionsFor(atom.id, pairs.map(p => p.peerAtomId)) })}
+              />
             ) : (
               <div>
                 <div className="text-[10px] uppercase tracking-wide text-amber-300 font-semibold mb-2">
                   Near-duplicate · {pairs.length} pair{pairs.length === 1 ? '' : 's'} detected
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <ObjectCard object={atomToVisible(atom, { actions: placeholderActions })} />
+                  <ObjectCard
+                object={atomToVisible(atom, { actions: actionsFor(atom.id, pairs.map(p => p.peerAtomId)) })}
+              />
                   {pairs.map(pair => {
                     const peer = atomById[pair.peerAtomId];
                     if (!peer) {
