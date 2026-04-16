@@ -21,6 +21,7 @@ type SourceDocRow = {
   source_url: string | null;
   mime_type: string | null;
   created_at: string;
+  projects: { id: string; name: string } | null;
 };
 
 const statusStyles: Record<DataSourceRow['status'], string> = {
@@ -51,13 +52,13 @@ export default async function SourcesPage() {
       .order('updated_at', { ascending: false }),
     supabase
       .from('source_documents')
-      .select('id, project_id, data_source_id, title, source_url, mime_type, created_at')
+      .select('id, project_id, data_source_id, title, source_url, mime_type, created_at, projects(id, name)')
       .order('created_at', { ascending: false })
       .limit(50),
   ]);
 
   const rows = (sources ?? []) as unknown as DataSourceRow[];
-  const docs = (documents ?? []) as SourceDocRow[];
+  const docs = (documents ?? []) as unknown as SourceDocRow[];
 
   const docsBySource = new Map<string, SourceDocRow[]>();
   const orphanDocs: SourceDocRow[] = [];
@@ -155,6 +156,7 @@ export default async function SourcesPage() {
               <thead className="bg-white/[0.03] text-slate-400 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium">Title</th>
+                  <th className="text-left px-4 py-3 font-medium">Project</th>
                   <th className="text-left px-4 py-3 font-medium">Type</th>
                   <th className="text-left px-4 py-3 font-medium">Source URL</th>
                   <th className="text-left px-4 py-3 font-medium">Ingested</th>
@@ -164,6 +166,19 @@ export default async function SourcesPage() {
                 {docs.map((doc) => (
                   <tr key={doc.id} className="hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-slate-200">{doc.title}</td>
+                    <td className="px-4 py-3">
+                      {doc.projects ? (
+                        <Link
+                          href={`/dashboard/${doc.projects.id}`}
+                          className="inline-flex items-center gap-1.5 text-indigo-300 hover:text-indigo-200"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400/60" />
+                          {doc.projects.name}
+                        </Link>
+                      ) : (
+                        <span className="text-slate-500">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-400">{doc.mime_type ?? '—'}</td>
                     <td className="px-4 py-3 text-slate-400 truncate max-w-xs">
                       {doc.source_url ? (

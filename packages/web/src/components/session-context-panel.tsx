@@ -95,11 +95,17 @@ export function SessionContextPanel({ projectId, onClose, standalone = false }: 
   const [knowledgeLoading, setKnowledgeLoading] = useState(false);
   const [knowledgeError, setKnowledgeError] = useState<string | null>(null);
 
-  const [width, setWidth] = useState<number>(() => {
-    if (standalone || typeof window === 'undefined') return DEFAULT_WIDTH;
+  // Initialize to DEFAULT_WIDTH on both server and first client render to avoid
+  // a hydration mismatch, then hydrate the persisted value from localStorage
+  // in an effect (client-only) once the tree is mounted.
+  const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
+  useEffect(() => {
+    if (standalone) return;
     const stored = Number(window.localStorage.getItem(WIDTH_STORAGE_KEY));
-    return stored >= MIN_WIDTH && stored <= MAX_WIDTH ? stored : DEFAULT_WIDTH;
-  });
+    if (stored >= MIN_WIDTH && stored <= MAX_WIDTH && stored !== DEFAULT_WIDTH) {
+      setWidth(stored);
+    }
+  }, [standalone]);
   const draggingRef = useRef(false);
 
   useEffect(() => {

@@ -184,12 +184,35 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
-      {/* Header */}
-      <div className="mb-10 flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
+      {/* Header — visual hierarchy mirrors the init report: project + status badge,
+          metadata subtitle, divider line, then content sections begin below. */}
+      <div className="mb-12 pb-8 border-b border-white/[0.05] flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
         <div className="min-w-0 lg:max-w-2xl">
-          <h1 className="text-2xl font-bold truncate">{project.name}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold truncate">{project.name}</h1>
+            <span
+              className={`text-[0.65rem] font-bold tracking-[0.18em] uppercase px-2.5 py-1 rounded-md border ${
+                grade === 'A' || grade === 'B'
+                  ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20'
+                  : grade === 'C'
+                  ? 'text-amber-300 bg-amber-500/10 border-amber-500/20'
+                  : 'text-red-300 bg-red-500/10 border-red-500/20'
+              }`}
+            >
+              Grade {grade}
+            </span>
+          </div>
+          <div className="text-xs text-slate-500 mt-1.5">
+            <span>{snapshots.length} {snapshots.length === 1 ? 'snapshot' : 'snapshots'}</span>
+            <span className="mx-1.5 text-slate-700">·</span>
+            <span>
+              Updated {new Date(project.updated_at ?? project.created_at ?? Date.now()).toLocaleString(undefined, {
+                month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+              })}
+            </span>
+          </div>
           {project.description && (
-            <p className="text-sm text-slate-500 mt-1 line-clamp-2">{project.description}</p>
+            <p className="text-sm text-slate-400 mt-3 line-clamp-2 max-w-xl leading-relaxed">{project.description}</p>
           )}
         </div>
         <div className="flex gap-2 shrink-0 items-center">
@@ -203,6 +226,15 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
               {optimizing ? 'Optimizing…' : 'Optimize with AI'}
             </button>
           )}
+          <Link
+            href={`/dashboard/${project.id}/knowledge`}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-sm font-semibold text-white hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg shadow-amber-500/10 whitespace-nowrap"
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            Agent Knowledge
+          </Link>
           <Link
             href={`/dashboard/${project.id}/chat`}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-sm font-semibold hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg shadow-purple-500/10 whitespace-nowrap"
