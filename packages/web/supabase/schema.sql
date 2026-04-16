@@ -455,3 +455,281 @@ create policy "Users can manage own deploy tokens"
 drop policy if exists "Public token lookup" on deploy_tokens;
 create policy "Public token lookup"
   on deploy_tokens for select using (enabled = true);
+
+-- Project logs (every AI communication — prompts and responses, grouped by date)
+create table if not exists project_logs (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  mode text check (mode in ('staipler', 'control')),
+  provider text,
+  model text,
+  token_estimate integer,
+  metadata jsonb default '{}',
+  created_at timestamptz default now()
+);
+
+create index if not exists project_logs_project_created_idx on project_logs(project_id, created_at desc);
+create index if not exists project_logs_user_idx on project_logs(user_id);
+
+alter table project_logs enable row level security;
+
+drop policy if exists "Users can view own project logs" on project_logs;
+drop policy if exists "Users can insert own project logs" on project_logs;
+
+create policy "Users can view own project logs"
+  on project_logs for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can insert own project logs"
+  on project_logs for insert with check (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- =====================================================================
+-- Knowledge Pipeline v1
+-- See packages/web/docs/knowledge-v1.md
+--
+-- Product law: no durable system effect without a visible artifact, a visible
+-- reason, and a visible path back to source.
+--
+-- Stages (locked): extract → reconcile → review → promote → render → inject
+-- Authority: assistant | user | source_document | mixed
+-- Status (5 states; 'superseded' is not a status, it's a deprecation reason):
+--   candidate | provisional | stable | deprecated | contradicted
+-- =====================================================================
+
+-- pgvector extension for atom embeddings (reconciler in Step 6)
+create extension if not exists vector;
+
+-- 1. Knowledge atoms — the durable compiler substrate
+create table if not exists knowledge_atoms (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  concept_slug text not null,
+  atom_type text not null check (atom_type in (
+    'claim', 'heuristic', 'question', 'answer', 'decision_note'
+  )),
+  content text not null,
+  status text not null default 'candidate' check (status in (
+    'candidate', 'provisional', 'stable', 'deprecated', 'contradicted'
+  )),
+  source_authority text not null check (source_authority in (
+    'assistant', 'user', 'source_document', 'mixed'
+  )),
+  -- Required when source_authority='mixed'; shape example:
+  -- { "assistant": 0.6, "user": 0.4, "source_document": 0.0 }
+  authority_breakdown jsonb,
+  confidence numeric default 0.5,
+  review_state text not null default 'pending' check (review_state in (
+    'pending', 'approved', 'rejected', 'edited', 'deferred'
+  )),
+  is_pinned boolean not null default false,
+  source_log_ids uuid[] not null default '{}',
+  source_document_ids uuid[] not null default '{}',
+  handoff_ids uuid[] not null default '{}',
+  parent_atom_id uuid references knowledge_atoms(id) on delete set null,
+  superseded_by uuid references knowledge_atoms(id) on delete set null,
+  embedding vector(1536),
+  reinforcement_count integer not null default 0,
+  distinct_session_count integer not null default 0,
+  created_at timestamptz default now(),
+  last_reinforced_at timestamptz,
+  promoted_at timestamptz,
+  deprecated_at timestamptz,
+  constraint mixed_requires_breakdown check (
+    source_authority <> 'mixed' or authority_breakdown is not null
+  )
+);
+
+create index if not exists knowledge_atoms_project_concept_idx
+  on knowledge_atoms(project_id, concept_slug);
+create index if not exists knowledge_atoms_project_status_idx
+  on knowledge_atoms(project_id, status);
+create index if not exists knowledge_atoms_project_review_idx
+  on knowledge_atoms(project_id, review_state);
+-- Note: ivfflat index added separately once atoms have been populated
+-- (ivfflat requires data to train). Cosine ops used to match reconciler spec.
+
+alter table knowledge_atoms enable row level security;
+
+drop policy if exists "Users can view own knowledge atoms" on knowledge_atoms;
+drop policy if exists "Users can manage own knowledge atoms" on knowledge_atoms;
+
+create policy "Users can view own knowledge atoms"
+  on knowledge_atoms for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own knowledge atoms"
+  on knowledge_atoms for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- 2. Knowledge atom events — append-only history per atom (visibility substrate)
+create table if not exists knowledge_atom_events (
+  id uuid default gen_random_uuid() primary key,
+  atom_id uuid references knowledge_atoms(id) on delete cascade not null,
+  project_id uuid references projects(id) on delete cascade not null,
+  -- Free-form but documented. Examples:
+  --   extracted, reinforced, similar_detected,
+  --   auto_promoted, user_approved, user_rejected, user_edited,
+  --   user_merged_into, superseded, contradicted, deprecated,
+  --   injected, excluded, pinned, unpinned
+  event_type text not null,
+  actor text not null check (actor in ('system', 'user')),
+  trigger_ref text,
+  payload jsonb not null default '{}',
+  created_at timestamptz default now()
+);
+
+create index if not exists knowledge_atom_events_atom_idx
+  on knowledge_atom_events(atom_id, created_at desc);
+create index if not exists knowledge_atom_events_project_idx
+  on knowledge_atom_events(project_id, created_at desc);
+
+alter table knowledge_atom_events enable row level security;
+
+drop policy if exists "Users can view own atom events" on knowledge_atom_events;
+drop policy if exists "Users can insert own atom events" on knowledge_atom_events;
+
+create policy "Users can view own atom events"
+  on knowledge_atom_events for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can insert own atom events"
+  on knowledge_atom_events for insert with check (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- 3. Pipeline runs — macro-history per stage
+create table if not exists knowledge_pipeline_runs (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  stage text not null check (stage in (
+    'extract', 'reconcile', 'review', 'promote', 'render', 'inject'
+  )),
+  session_id uuid,
+  status text not null check (status in ('running', 'succeeded', 'failed')),
+  counts jsonb not null default '{}',
+  error text,
+  started_at timestamptz default now(),
+  completed_at timestamptz
+);
+
+create index if not exists knowledge_pipeline_runs_project_stage_idx
+  on knowledge_pipeline_runs(project_id, stage, started_at desc);
+
+alter table knowledge_pipeline_runs enable row level security;
+
+drop policy if exists "Users can view own pipeline runs" on knowledge_pipeline_runs;
+drop policy if exists "Users can manage own pipeline runs" on knowledge_pipeline_runs;
+
+create policy "Users can view own pipeline runs"
+  on knowledge_pipeline_runs for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own pipeline runs"
+  on knowledge_pipeline_runs for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- 4. Knowledge articles — rendered markdown cache (regenerable)
+create table if not exists knowledge_articles (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  concept_slug text not null,
+  title text not null,
+  body_md text not null,
+  atom_ids uuid[] not null default '{}',
+  rendered_at timestamptz default now(),
+  unique (project_id, concept_slug)
+);
+
+create index if not exists knowledge_articles_project_idx
+  on knowledge_articles(project_id);
+
+alter table knowledge_articles enable row level security;
+
+drop policy if exists "Users can view own articles" on knowledge_articles;
+drop policy if exists "Users can manage own articles" on knowledge_articles;
+
+create policy "Users can view own articles"
+  on knowledge_articles for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own articles"
+  on knowledge_articles for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- 5. Prompt view — singleton per project, compact injection artifact
+create table if not exists knowledge_prompt_view (
+  project_id uuid primary key references projects(id) on delete cascade,
+  body_md text not null default '',
+  token_estimate integer not null default 0,
+  atom_ids uuid[] not null default '{}',
+  rendered_at timestamptz default now()
+);
+
+alter table knowledge_prompt_view enable row level security;
+
+drop policy if exists "Users can view own prompt view" on knowledge_prompt_view;
+drop policy if exists "Users can manage own prompt view" on knowledge_prompt_view;
+
+create policy "Users can view own prompt view"
+  on knowledge_prompt_view for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own prompt view"
+  on knowledge_prompt_view for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+
+-- 6. Injection decisions — per-compile inclusion/exclusion record
+create table if not exists knowledge_injection_decisions (
+  id uuid default gen_random_uuid() primary key,
+  project_id uuid references projects(id) on delete cascade not null,
+  session_id uuid,
+  -- Points to the knowledge_pipeline_runs row (stage='inject') for this compile.
+  -- Prompt-view regeneration runs under stage='render' and does NOT populate this field.
+  inject_run_id uuid references knowledge_pipeline_runs(id) on delete set null,
+  atom_id uuid references knowledge_atoms(id) on delete cascade not null,
+  decision text not null check (decision in ('included', 'excluded', 'pinned')),
+  -- When decision='excluded', must be one of:
+  --   low_authority | status_below_threshold | pending_review |
+  --   contradicted | superseded | token_budget | source_override |
+  --   manually_excluded
+  reason text check (reason is null or reason in (
+    'low_authority', 'status_below_threshold', 'pending_review',
+    'contradicted', 'superseded', 'token_budget', 'source_override',
+    'manually_excluded'
+  )),
+  token_cost integer not null default 0,
+  compiled_at timestamptz default now(),
+  constraint excluded_requires_reason check (
+    decision <> 'excluded' or reason is not null
+  )
+);
+
+create index if not exists knowledge_injection_decisions_project_time_idx
+  on knowledge_injection_decisions(project_id, compiled_at desc);
+create index if not exists knowledge_injection_decisions_atom_idx
+  on knowledge_injection_decisions(atom_id);
+create index if not exists knowledge_injection_decisions_run_idx
+  on knowledge_injection_decisions(inject_run_id);
+
+alter table knowledge_injection_decisions enable row level security;
+
+drop policy if exists "Users can view own injection decisions" on knowledge_injection_decisions;
+drop policy if exists "Users can manage own injection decisions" on knowledge_injection_decisions;
+
+create policy "Users can view own injection decisions"
+  on knowledge_injection_decisions for select using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
+create policy "Users can manage own injection decisions"
+  on knowledge_injection_decisions for all using (
+    project_id in (select id from projects where user_id = auth.uid())
+  );
