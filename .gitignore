@@ -7,3 +7,5 @@ coverage/
 .env
 .env.local
 .env*.local
+.elasticbeanstalk/app_versions/
+.elasticbeanstalk/logs/

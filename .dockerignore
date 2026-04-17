@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+.git
+.gitignore
+.env*
+!.env.*.example
+**/*.md
+**/.DS_Store
+**/.elasticbeanstalk
+**/.ebextensions
+**/.eb/
+**/*.test.ts
+**/*.test.tsx
+**/coverage
