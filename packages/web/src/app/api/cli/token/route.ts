@@ -46,7 +46,10 @@ export async function POST(request: Request) {
       enabled: true,
     });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[cli/token] Insert failed:', error.message, error.details, error.hint);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   return NextResponse.json({
     token: tokenPlaintext,

@@ -284,6 +284,9 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
         />
       )}
 
+      {/* Sync with codebase — CLI bridge */}
+      <CliPanel projectId={project.id} />
+
       {/* Quick Proof — show for new projects */}
       {snapshots.length < 2 && !showOnboarding && (
         <QuickProofCard projectId={project.id} projectName={project.name} />
@@ -451,7 +454,6 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
           </div>
         </div>
         <DataSourcesPanel projectId={project.id} dataSources={dataSources} forceOpen={showSourcePicker} />
-        <CliPanel projectId={project.id} />
         <DeployPanel projectId={project.id} hasAgentConfig={!!hasAgentConfig} />
       </section>
 

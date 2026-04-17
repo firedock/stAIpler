@@ -15,9 +15,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-dvh flex flex-col overflow-hidden">
       <DashboardNav email={user.email ?? ''} />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 overflow-auto">{children}</main>
     </div>
   );
 }

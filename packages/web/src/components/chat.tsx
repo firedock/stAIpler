@@ -273,7 +273,7 @@ export function Chat({ projectId, projectName, initialPrompt, agentConfig }: { p
   }
 
   return (
-    <div className="flex h-[calc(100vh-57px)]">
+    <div className="flex h-full">
       <div className="flex flex-col flex-1 min-w-0">
       {/* Toolbar */}
       <div className="px-4 py-2 border-b border-white/[0.04] flex items-center justify-between bg-[#06060e] flex-wrap gap-2">
