@@ -199,14 +199,23 @@ function runClaude(
   env: NodeJS.ProcessEnv,
 ): { stdout: string; stderr: string; exitCode: number | null; elapsedMs: number; timedOut: boolean } {
   const start = Date.now();
-  const res = spawnSync(claudeBin, ['-p', '--model', model], {
-    cwd,
-    input: prompt,
-    env,
-    timeout: timeoutSeconds * 1000,
-    encoding: 'utf-8',
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  // `--permission-mode bypassPermissions` is required for agentic behavior in
+  // ephemeral benchmark workspaces: without it, `claude -p` runs tools but the
+  // permission layer blocks edits since stdin has no interactive approver, so
+  // every task trivially fails with zero workspace changes. The workspaces
+  // are throwaway temp dirs / worktrees, so bypass is safe here.
+  const res = spawnSync(
+    claudeBin,
+    ['-p', '--model', model, '--permission-mode', 'bypassPermissions'],
+    {
+      cwd,
+      input: prompt,
+      env,
+      timeout: timeoutSeconds * 1000,
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    },
+  );
   const elapsedMs = Date.now() - start;
   return {
     stdout: res.stdout ?? '',
