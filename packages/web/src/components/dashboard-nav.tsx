@@ -7,12 +7,13 @@ import { createClient } from '@/lib/supabase/client';
 const TABS = [
   { href: '/dashboard', label: 'Projects' },
   { href: '/dashboard/sources', label: 'Data Sources' },
+  { href: '/dashboard/benchmark', label: 'Benchmark' },
 ];
 
 function isActive(pathname: string, href: string): boolean {
   if (href === '/dashboard') {
-    // Projects tab is active on /dashboard and /dashboard/<id>/..., but not on /dashboard/sources/...
-    return pathname === '/dashboard' || /^\/dashboard\/(?!sources)/.test(pathname);
+    // Projects tab is active on /dashboard and /dashboard/<id>/..., but not on sibling tabs.
+    return pathname === '/dashboard' || /^\/dashboard\/(?!sources|benchmark)/.test(pathname);
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

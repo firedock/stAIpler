@@ -1,0 +1,39 @@
+id: adp-004
+title: New schema uses zod
+category: project-adaptation
+workspace_source: current_repo_snapshot
+description: >-
+  The agent adds a new validated schema. Repo convention is zod; it must use
+  zod, not ad-hoc runtime checks or a different validator.
+input:
+  prompt: |
+    Add a module `packages/core/src/utils/username-schema.ts` that exports a
+    UsernameSchema plus the inferred Username type. A valid username is 3-32
+    characters, matches /^[a-z0-9_-]+$/, and the module should follow the
+    validation patterns already used in this repository.
+requirements:
+  - id: schema-created
+    type: file_exists
+    description: schema module must exist
+    path: packages/core/src/utils/username-schema.ts
+  - id: uses-zod
+    type: file_contains
+    description: schema must import zod
+    path: packages/core/src/utils/username-schema.ts
+    value: "from 'zod'"
+  - id: exports-schema
+    type: file_contains
+    description: schema must export UsernameSchema
+    path: packages/core/src/utils/username-schema.ts
+    value: "UsernameSchema"
+  - id: no-yup-ajv
+    type: workspace_diff_absent
+    description: must not introduce yup or ajv
+    pattern: "from 'yup'|from 'ajv'"
+    flags: ""
+  - id: scope
+    type: no_edit_outside
+    allowed_globs:
+      - "packages/core/src/**"
+    description: edits must stay in packages/core/src
+timeout_seconds: 240

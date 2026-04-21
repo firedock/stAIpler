@@ -1,0 +1,29 @@
+id: hdf-001
+title: Emit a concise handoff summary on completion
+category: handoff-quality
+workspace_source: fixture
+description: >-
+  After finishing a small task, the agent should close with a structured
+  handoff: what changed, what is left to do, what assumptions were made.
+input:
+  prompt: |
+    Add a file src/version.ts that exports the constant VERSION = '0.1.0'.
+    When you finish, close with a short handoff summary covering: (1) what you
+    changed, (2) anything still open, (3) assumptions you made.
+  files: []
+requirements:
+  - id: file-created
+    type: file_exists
+    description: version.ts must exist
+    path: src/version.ts
+  - id: handoff-quality
+    type: llm_judge
+    description: transcript ends with a concise, structured handoff summary
+    rubric: |
+      The final portion of the transcript must contain a handoff summary with
+      three clearly labeled parts: what changed, what is left to do, and
+      assumptions made. Each part should be one to three sentences. A pass
+      requires all three parts to be present and distinct. A vague conclusion
+      or a single paragraph is a fail.
+    pass_threshold: 0.7
+timeout_seconds: 180

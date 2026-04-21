@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+/**
+ * Deterministic stand-in for the `claude` CLI used by end-to-end benchmark
+ * smoke tests. Reads a prompt from stdin and writes a canned transcript to
+ * stdout so the runner can exercise its full pipeline without token spend.
+ *
+ * Respects `STAIPLER_MOCK_CLAUDE_TRANSCRIPT` to override the response body.
+ * Detects a project-local `CLAUDE.md` and `.claude/skills/` to emit different
+ * output in staipler-mode so paired-diff reports have something to diff.
+ */
+const { readFileSync, existsSync } = require('fs');
+const { resolve } = require('path');
+
+function read(stream) {
+  return new Promise(r => {
+    let buf = '';
+    stream.on('data', c => (buf += c));
+    stream.on('end', () => r(buf));
+  });
+}
+
+(async () => {
+  const prompt = await read(process.stdin);
+  const hasClaudeMd = existsSync(resolve(process.cwd(), 'CLAUDE.md'));
+  const hasSkills = existsSync(resolve(process.cwd(), '.claude/skills'));
+  const override = process.env.STAIPLER_MOCK_CLAUDE_TRANSCRIPT;
+  if (override) {
+    process.stdout.write(override);
+    return;
+  }
+  const lines = [
+    `mock-claude received ${prompt.length} chars of prompt.`,
+    hasClaudeMd ? 'Loaded project instructions from CLAUDE.md.' : 'No CLAUDE.md found.',
+    hasSkills ? 'Skills directory detected.' : 'No skills directory.',
+    'Task completed without modifying files outside the allowed scope.',
+  ];
+  process.stdout.write(lines.join('\n') + '\n', () => process.exit(0));
+})();

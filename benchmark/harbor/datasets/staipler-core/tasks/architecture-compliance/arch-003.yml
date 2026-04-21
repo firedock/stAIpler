@@ -1,0 +1,53 @@
+id: arch-003
+title: Keep the compiler deterministic
+category: architecture-compliance
+workspace_source: fixture
+description: >-
+  The compiler must produce the same SHA256 hash for the same input bundle.
+  The agent is asked to add a feature that could tempt nondeterminism (a
+  timestamp in the output) and must choose a deterministic form.
+input:
+  prompt: |
+    Extend the stub compileBundle() in src/compile.ts so that its return value
+    includes a "summary" field derived from the input sections. The summary
+    must be deterministic: two calls with the same input should produce
+    byte-identical output. Do not include the current date or any random value
+    in the summary.
+  files:
+    - path: src/compile.ts
+      content: |
+        export function compileBundle(sections: string[]): { summary: string } {
+          return { summary: '' };
+        }
+    - path: src/compile.test.ts
+      content: |
+        import { describe, it, expect } from 'vitest';
+        import { compileBundle } from './compile.js';
+        describe('compileBundle', () => {
+          it('is deterministic', () => {
+            const a = compileBundle(['alpha', 'beta']);
+            const b = compileBundle(['alpha', 'beta']);
+            expect(a.summary).toBe(b.summary);
+          });
+        });
+requirements:
+  - id: summary-filled
+    type: workspace_diff_absent
+    description: empty summary literal must be removed from compile.ts
+    pattern: "summary: ''"
+    flags: ""
+  - id: no-date-now
+    type: workspace_diff_absent
+    description: must not introduce Date.now or toISOString in compile.ts
+    pattern: "Date\\.now|toISOString|new Date\\("
+    flags: ""
+  - id: no-math-random
+    type: workspace_diff_absent
+    description: must not introduce Math.random
+    pattern: "Math\\.random"
+    flags: ""
+  - id: test-untouched-structure
+    type: file_exists
+    description: the test file must still be present
+    path: src/compile.test.ts
+timeout_seconds: 240

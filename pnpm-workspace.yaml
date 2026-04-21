@@ -1,2 +1,4 @@
 packages:
   - 'packages/*'
+  - 'packages/adapters/*'
+  - 'benchmark/harbor'

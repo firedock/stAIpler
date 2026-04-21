@@ -1,0 +1,7 @@
+name: staipler-core
+version: 0.1.0
+description: >-
+  Internal benchmark suite for stAIpler. Twenty tasks across five categories
+  weighted toward deterministic, git-diff-based scoring. Only two tasks use
+  llm_judge so headline numbers stay objective.
+task_count: 20

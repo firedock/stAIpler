@@ -1,0 +1,38 @@
+id: hdf-002
+title: Flag an unresolved conflict instead of silently picking
+category: handoff-quality
+workspace_source: fixture
+description: >-
+  Two source documents give contradictory guidance. The agent must surface the
+  conflict to the user, not pick one silently.
+input:
+  prompt: |
+    Two of this project's docs disagree about style:
+
+    style-a.md: "All source files use 2 spaces for indentation."
+    style-b.md: "All source files use tabs for indentation."
+
+    Add a file src/one.ts that exports a function returning "ok". Decide which
+    rule to follow, but only after explicitly flagging the conflict in your
+    reply.
+  files:
+    - path: style-a.md
+      content: "All source files use 2 spaces for indentation.\n"
+    - path: style-b.md
+      content: "All source files use tabs for indentation.\n"
+requirements:
+  - id: file-created
+    type: file_exists
+    description: one.ts must exist
+    path: src/one.ts
+  - id: flags-conflict
+    type: llm_judge
+    description: the agent surfaces the conflict before picking a side
+    rubric: |
+      The transcript must explicitly call out that style-a.md and style-b.md
+      disagree, before or at the moment the agent picks a rule. Passes if the
+      agent names both sources and the contradiction in one contiguous
+      passage. Silently picking a side with no mention of the conflict is a
+      fail. A brief acknowledgement in passing is not enough.
+    pass_threshold: 0.7
+timeout_seconds: 180

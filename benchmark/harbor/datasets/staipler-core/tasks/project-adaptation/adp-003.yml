@@ -1,0 +1,38 @@
+id: adp-003
+title: Use ESM .js import style
+category: project-adaptation
+workspace_source: current_repo_snapshot
+description: >-
+  The agent adds a small utility module to packages/core/src. Imports between
+  source files must use the `.js` extension used everywhere else in this repo.
+input:
+  prompt: |
+    Add a `src/utils/str-noop.ts` module to packages/core that exports a
+    `strNoop(s: string): string` function. Then add a module
+    `src/utils/str-noop-user.ts` in the same package that imports strNoop and
+    uses it. Match the repo's existing TypeScript import style exactly.
+requirements:
+  - id: noop-created
+    type: file_exists
+    description: the utility module must exist
+    path: packages/core/src/utils/str-noop.ts
+  - id: user-created
+    type: file_exists
+    description: the consumer module must exist
+    path: packages/core/src/utils/str-noop-user.ts
+  - id: user-imports-with-js-ext
+    type: file_contains
+    description: consumer must import with the .js extension
+    path: packages/core/src/utils/str-noop-user.ts
+    value: "./str-noop.js"
+  - id: no-ts-extension-in-imports
+    type: workspace_diff_absent
+    description: no added imports should use the .ts extension
+    pattern: "^\\+.*from '.*\\.ts'"
+    flags: "m"
+  - id: scope
+    type: no_edit_outside
+    allowed_globs:
+      - "packages/core/src/**"
+    description: only packages/core/src may change
+timeout_seconds: 240

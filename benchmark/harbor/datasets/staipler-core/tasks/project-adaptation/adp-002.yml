@@ -1,0 +1,33 @@
+id: adp-002
+title: Add a vitest test in the right location
+category: project-adaptation
+workspace_source: current_repo_snapshot
+description: >-
+  Tests live under packages/core/tests/. The agent must add a new vitest file
+  there (not colocated next to source) and use the existing import style.
+input:
+  prompt: |
+    Add a passing vitest test that asserts LAYER_TYPES from @staipler/core has
+    at least ten entries. Place the test file in the correct directory for
+    this repo and match the existing import style.
+requirements:
+  - id: test-in-tests-dir
+    type: file_exists
+    description: test file must live under packages/core/tests
+    path: packages/core/tests/layer-types.test.ts
+  - id: imports-with-js-ext
+    type: file_contains
+    description: import must use the ESM .js extension
+    path: packages/core/tests/layer-types.test.ts
+    value: ".js'"
+  - id: no-new-files-in-src
+    type: workspace_diff_absent
+    description: no new files under packages/core/src
+    pattern: "^diff --git a/packages/core/src/.*\\.test\\.ts"
+    flags: "m"
+  - id: scope
+    type: no_edit_outside
+    allowed_globs:
+      - "packages/core/tests/**"
+    description: edits must stay inside packages/core/tests
+timeout_seconds: 240

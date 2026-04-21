@@ -9,3 +9,7 @@ coverage/
 .env*.local
 .elasticbeanstalk/app_versions/
 .elasticbeanstalk/logs/
+
+# Benchmark run artifacts and compiled release manifests — generated, never commit
+benchmark/runs/
+.staipler/releases/

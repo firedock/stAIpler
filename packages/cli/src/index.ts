@@ -13,6 +13,8 @@ import { evalProjectCommand } from './commands/eval-project.js';
 import { memoryCommand } from './commands/memory.js';
 import { loginCommand } from './commands/login.js';
 import { pullCommand } from './commands/pull.js';
+import { benchmarkCommand } from './commands/benchmark.js';
+import { compileCommand } from './commands/compile.js';
 
 const program = new Command()
   .name('staipler')
@@ -32,5 +34,7 @@ program.addCommand(evalProjectCommand);
 program.addCommand(memoryCommand);
 program.addCommand(loginCommand);
 program.addCommand(pullCommand);
+program.addCommand(benchmarkCommand);
+program.addCommand(compileCommand);
 
 program.parse();

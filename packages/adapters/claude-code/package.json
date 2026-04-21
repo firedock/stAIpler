@@ -1,0 +1,37 @@
+{
+  "name": "@staipler/adapter-claude-code",
+  "version": "0.1.0",
+  "description": "stAIpler compiler target that emits Claude Code artifacts (CLAUDE.md + .claude/skills/*) from a BenchmarkReadyBundle",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts"
+  },
+  "keywords": [
+    "staipler",
+    "claude-code",
+    "compiler",
+    "adapter"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/firedock/stAIpler.git",
+    "directory": "packages/adapters/claude-code"
+  },
+  "homepage": "https://staipler.com",
+  "dependencies": {
+    "@staipler/core": "workspace:*",
+    "zod": "^3.24.0"
+  }
+}

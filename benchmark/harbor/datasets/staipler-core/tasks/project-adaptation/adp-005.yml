@@ -1,0 +1,34 @@
+id: adp-005
+title: New adapter lives under packages/adapters
+category: project-adaptation
+workspace_source: current_repo_snapshot
+description: >-
+  When adding a new compiler target, it must live under packages/adapters/,
+  not packages/ directly or inside packages/core.
+input:
+  prompt: |
+    Scaffold a new workspace package `@staipler/adapter-stub-markdown` that
+    exports a `compileStubMarkdown()` function returning the string "stub".
+    Place it in the right workspace location for this repo and wire the
+    package.json so it's discoverable by pnpm.
+requirements:
+  - id: package-in-adapters
+    type: file_exists
+    description: new package must live under packages/adapters/
+    path: packages/adapters/stub-markdown/package.json
+  - id: package-has-entry
+    type: file_exists
+    description: package entry point must be created
+    path: packages/adapters/stub-markdown/src/index.ts
+  - id: not-under-core
+    type: workspace_diff_absent
+    description: no new files under packages/core/src for this adapter
+    pattern: "^diff --git a/packages/core/src/.*stub-markdown"
+    flags: "m"
+  - id: scope
+    type: no_edit_outside
+    allowed_globs:
+      - "packages/adapters/**"
+      - "pnpm-workspace.yaml"
+    description: only adapter package and workspace config may change
+timeout_seconds: 240

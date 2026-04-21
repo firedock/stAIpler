@@ -1,0 +1,33 @@
+id: ctx-001
+title: Honor a naming convention set earlier in the prompt
+category: context-retention
+workspace_source: fixture
+description: >-
+  The prompt establishes a naming rule up front and asks for multi-file edits.
+  The agent must apply the rule consistently across both files.
+input:
+  prompt: |
+    Naming convention for this project: every exported symbol in src/ starts
+    with the prefix `sx_`. Add two new exported functions to the workspace:
+    one called `greet` in src/greet.ts that returns "hi", and one called
+    `shout` in src/shout.ts that returns "HI". Apply the naming convention.
+  files:
+    - path: src/existing.ts
+      content: "export const sx_existing = true;\n"
+requirements:
+  - id: greet-prefixed
+    type: file_contains
+    description: greet must be prefixed per the convention
+    path: src/greet.ts
+    value: "export const sx_greet"
+  - id: shout-prefixed
+    type: file_contains
+    description: shout must be prefixed per the convention
+    path: src/shout.ts
+    value: "export const sx_shout"
+  - id: no-unprefixed-exports
+    type: workspace_diff_absent
+    description: diff must not introduce an unprefixed exported symbol
+    pattern: "^\\+export (const|function) (?!sx_)"
+    flags: "m"
+timeout_seconds: 180

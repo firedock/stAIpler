@@ -1,0 +1,34 @@
+id: adp-001
+title: Add a new CLI command matching the commander pattern
+category: project-adaptation
+workspace_source: current_repo_snapshot
+description: >-
+  The agent is asked to add a `hello` command. It must live in
+  packages/cli/src/commands/, use commander, and be registered in
+  packages/cli/src/index.ts — matching the existing conventions.
+input:
+  prompt: |
+    Add a new CLI command called `hello` that prints "hello from stAIpler" and
+    exits 0. Follow every convention already in this repo for registering CLI
+    commands. Do not touch tests or docs.
+requirements:
+  - id: command-file-exists
+    type: file_exists
+    description: command file must be created in the conventional location
+    path: packages/cli/src/commands/hello.ts
+  - id: uses-commander
+    type: file_contains
+    description: command file must import Command from commander
+    path: packages/cli/src/commands/hello.ts
+    value: "from 'commander'"
+  - id: registered-in-index
+    type: file_contains
+    description: index.ts must register the new command
+    path: packages/cli/src/index.ts
+    value: "helloCommand"
+  - id: scope
+    type: no_edit_outside
+    description: edits must stay inside packages/cli
+    allowed_globs:
+      - "packages/cli/src/**"
+timeout_seconds: 240

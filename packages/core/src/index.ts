@@ -63,6 +63,25 @@ export {
   buildBenchmarkJudgePrompt,
   parseBenchmarkJudgeResponse,
   runBenchmarkEval,
+  BENCHMARK_READY_BUNDLE_CONTRACT_VERSION,
+  toBenchmarkReadyBundle,
+  hashSectionContent,
+  BENCHMARK_CATEGORIES,
+  BenchmarkTaskSchema,
+  RequirementSchema,
+  loadTask,
+  loadDataset,
+  FAILURE_CATEGORIES,
+  classifyFailure,
+  generateRunJson,
+  generateSummaryMd,
+  generateDiffMd,
+  pairResults,
+  computePassRates,
+  evaluateRequirement,
+  parseChangedFiles,
+  matchGlob,
+  loadActiveBundle,
 } from './eval/index.js';
 export type {
   EvalScenario,
@@ -78,6 +97,32 @@ export type {
   SynthesizedScenario,
   SynthesisContext,
   BenchmarkEvalConfig,
+  BenchmarkReadyBundle,
+  CoverageSummary,
+  BenchmarkTask,
+  BenchmarkCategory,
+  BenchmarkMode,
+  Requirement,
+  RequirementResult,
+  TaskRunResult,
+  TaskArtifactPaths,
+  WorkspaceSource,
+  NetworkPolicy,
+  FailureCategory,
+  RunReport,
+  RunMeta,
+  PairedResult,
+  PassRates,
+  ReleaseContext,
+  ReleaseLayerProvenance,
+  ReleaseProvenanceSource,
+  ReleaseConflict,
+  ReleaseSkillSource,
+  ReleaseCoverage,
+  TextContext,
+  DiffContext,
+  FileSystemProbe,
+  ActiveBundle,
 } from './eval/index.js';
 
 // Optimizer
@@ -196,6 +241,24 @@ export type {
   PipelineEvent,
   TransformationLog,
 } from './pipeline/index.js';
+
+// Visibility events
+export { EventBus, silentBus, consoleSink, jsonlFileSink, memorySink, formatEventLine } from './events/index.js';
+export type {
+  EventSink,
+  VisibilityEvent,
+  BaseEvent,
+  ScanEvent,
+  AnalyzeEvent,
+  BundleEvent,
+  RenderEvent,
+  MaterializeEvent,
+  ReleaseEvent,
+  TaskEvent,
+  RequirementEvent,
+  RunEvent,
+  WarningEvent,
+} from './events/index.js';
 
 // Errors
 export {

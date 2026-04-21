@@ -1,0 +1,51 @@
+id: arch-004
+title: Respect the adapter/core contract boundary
+category: architecture-compliance
+workspace_source: current_repo_snapshot
+description: >-
+  Compiler-target adapters must consume the BenchmarkReadyBundle contract —
+  they must not import analyzer internals or pipeline internals directly.
+input:
+  prompt: |
+    Add a new function `summarizeBundle` inside
+    packages/adapters/claude-code/src/ that returns a one-sentence human
+    summary of a BenchmarkReadyBundle. The function may import from
+    @staipler/core but must not reach into optimizer or pipeline internals
+    (it must not import AnalysisResult, ResolvedLayer, or any pipeline path).
+requirements:
+  - id: summarize-created
+    type: workspace_diff_matches
+    description: new code must land in the claude-code adapter
+    pattern: "^diff --git a/packages/adapters/claude-code/src/"
+    flags: "m"
+  - id: no-pipeline-internal-import
+    type: workspace_diff_absent
+    description: no import of pipeline internals
+    pattern: "from '@staipler/core/src/pipeline"
+    flags: ""
+  - id: no-analyzer-internal-import
+    type: workspace_diff_absent
+    description: no import of analyzer internals
+    pattern: "from '@staipler/core/src/optimizer"
+    flags: ""
+  - id: no-resolved-layer-import
+    type: workspace_diff_absent
+    description: no direct import of ResolvedLayer
+    pattern: "import \\{[^}]*ResolvedLayer"
+    flags: ""
+  - id: scope
+    type: no_edit_outside
+    allowed_globs:
+      - "packages/adapters/claude-code/**"
+    description: edits must stay inside the claude-code adapter package
+  - id: explains-the-boundary
+    type: llm_judge
+    description: agent explained which contract it consumed and why it did not reach past it
+    rubric: |
+      The agent's transcript must explicitly explain that summarizeBundle
+      consumes the BenchmarkReadyBundle contract from @staipler/core and does
+      not import analyzer or pipeline internals. A vague mention is not enough;
+      the explanation must name the contract and the reason. Pass if the
+      reasoning is present and coherent; fail otherwise.
+    pass_threshold: 0.7
+timeout_seconds: 300

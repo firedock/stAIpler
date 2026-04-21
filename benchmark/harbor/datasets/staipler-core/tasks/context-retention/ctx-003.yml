@@ -1,0 +1,37 @@
+id: ctx-003
+title: Honor the "vitest, not jest" rule
+category: context-retention
+workspace_source: fixture
+description: >-
+  The workspace's testing tool is vitest. The agent must add a vitest test
+  and must not introduce jest imports or config.
+input:
+  prompt: |
+    This project uses vitest, not jest. Add a new passing test at
+    src/math.test.ts that asserts 1 + 1 === 2. Use the right testing library.
+  files:
+    - path: src/math.ts
+      content: "export const add = (a: number, b: number) => a + b;\n"
+    - path: vitest.config.ts
+      content: "export default { test: {} };\n"
+requirements:
+  - id: test-exists
+    type: file_exists
+    description: a vitest test must be created
+    path: src/math.test.ts
+  - id: imports-vitest
+    type: file_contains
+    description: test must import from vitest
+    path: src/math.test.ts
+    value: "from 'vitest'"
+  - id: no-jest-imports
+    type: workspace_diff_absent
+    description: no jest import should be added
+    pattern: "from 'jest'|from '@jest/"
+    flags: ""
+  - id: no-jest-config
+    type: workspace_diff_absent
+    description: no jest config file should be added
+    pattern: "^diff --git a/jest\\.config"
+    flags: "m"
+timeout_seconds: 180

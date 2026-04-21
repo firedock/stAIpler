@@ -1,0 +1,10 @@
+{
+  "name": "@staipler/benchmark-harbor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@staipler/adapter-claude-code": "workspace:*",
+    "@staipler/core": "workspace:*"
+  }
+}

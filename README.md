@@ -244,14 +244,26 @@ Create an account at **https://staipler.com** to:
 ```
 staipler/
 ├── packages/
-│   ├── core/     # @staipler/core — scanner, analyzer, compiler, optimizer
-│   ├── cli/      # @staipler/cli — build, validate, optimize, eval, dashboard
-│   └── web/      # Next.js web app with Supabase auth
-├── library/      # Instruction assets
-├── stacks/       # Deployment recipes
-├── contracts/    # Structural constraints
-└── site/         # Landing page
+│   ├── core/                    # @staipler/core — scanner, analyzer, compiler, optimizer
+│   ├── cli/                     # @staipler/cli — build, validate, optimize, eval, dashboard
+│   ├── web/                     # Next.js web app with Supabase auth
+│   └── adapters/claude-code/    # @staipler/adapter-claude-code — CLAUDE.md + .claude/skills/* target
+├── benchmark/harbor/            # Paired baseline/staipler benchmark (see benchmark/harbor/README.md)
+├── library/                     # Instruction assets
+├── stacks/                      # Deployment recipes
+├── contracts/                   # Structural constraints
+└── site/                        # Landing page
 ```
+
+## Benchmark
+
+`staipler benchmark run` executes the 20-task suite under
+`benchmark/harbor/datasets/staipler-core/` twice — once in baseline mode, once
+with stAIpler-compiled Claude Code artifacts materialized into each task
+workspace — and emits `run.json`, `summary.md`, and a paired `diff.md`.
+Scoring is biased toward deterministic checks (git diff, regex, allowed-glob)
+with judge-assisted checks reserved for subjective criteria. Full details:
+[benchmark/harbor/README.md](benchmark/harbor/README.md).
 
 ## License
 

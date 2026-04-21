@@ -1,0 +1,41 @@
+id: ctx-004
+title: Preserve a supplied layer definition verbatim
+category: context-retention
+workspace_source: fixture
+description: >-
+  The prompt provides a canonical layer definition and asks the agent to store
+  it on disk. The definition must round-trip exactly — no paraphrasing, no
+  normalization of punctuation.
+input:
+  prompt: |
+    Save the following layer definition to layers/identity.md, exactly as
+    written, without changing a single character:
+
+    ---
+    id: identity
+    kind: identity
+    version: 1.0.0
+    ---
+    You are a precise, evidence-grounded code review assistant.
+  files: []
+requirements:
+  - id: file-written
+    type: file_exists
+    description: the layer file must exist at the specified path
+    path: layers/identity.md
+  - id: contains-frontmatter
+    type: file_contains
+    description: the frontmatter must be preserved
+    path: layers/identity.md
+    value: "kind: identity"
+  - id: contains-body
+    type: file_contains
+    description: the body must be preserved verbatim
+    path: layers/identity.md
+    value: "You are a precise, evidence-grounded code review assistant."
+  - id: version-preserved
+    type: file_contains
+    description: the version string must match exactly
+    path: layers/identity.md
+    value: "version: 1.0.0"
+timeout_seconds: 120

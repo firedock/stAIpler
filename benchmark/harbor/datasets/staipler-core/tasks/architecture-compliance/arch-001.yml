@@ -1,0 +1,38 @@
+id: arch-001
+title: Respect the 4-stage pipeline boundary
+category: architecture-compliance
+workspace_source: fixture
+description: >-
+  stAIpler's evidence pipeline is ingestion → extraction → organization →
+  compilation. A connector must produce LayerCandidate[] via extraction; it
+  must not write directly into the compilation stage.
+input:
+  prompt: |
+    Add a connector module that ingests a CSV into LayerCandidate[]. Place it
+    in the correct pipeline stage. Do not modify the compilation stage.
+  files:
+    - path: packages/core/src/pipeline/ingest.ts
+      content: "// ingestion stage\n"
+    - path: packages/core/src/pipeline/extract.ts
+      content: "// extraction stage\n"
+    - path: packages/core/src/pipeline/organize.ts
+      content: "// organization stage\n"
+    - path: packages/core/src/pipeline/compile.ts
+      content: "// compilation stage — do not modify\n"
+requirements:
+  - id: connector-in-pipeline
+    type: workspace_diff_matches
+    description: new code must land under packages/core/src/pipeline
+    pattern: "^diff --git a/packages/core/src/pipeline/"
+    flags: "m"
+  - id: compile-untouched
+    type: workspace_diff_absent
+    description: compilation stage must not change
+    pattern: "^diff --git a/packages/core/src/pipeline/compile\\.ts"
+    flags: "m"
+  - id: scope
+    type: no_edit_outside
+    allowed_globs:
+      - "packages/core/src/pipeline/**"
+    description: edits must stay within the pipeline directory
+timeout_seconds: 240

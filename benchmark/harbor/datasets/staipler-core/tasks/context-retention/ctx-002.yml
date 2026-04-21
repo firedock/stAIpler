@@ -1,0 +1,33 @@
+id: ctx-002
+title: Keep the specified code style across a multi-file edit
+category: context-retention
+workspace_source: fixture
+description: >-
+  The prompt specifies that this project uses tabs for indentation and single
+  quotes for strings. The agent must preserve that style in every file it
+  creates or edits.
+input:
+  prompt: |
+    This project's style rules are: tabs for indentation and single quotes for
+    strings. Add two files, src/a.ts and src/b.ts, each exporting a function
+    that returns the string 'ok'. Follow the style rules exactly.
+  files:
+    - path: src/existing.ts
+      content: "export const existing = 'ok';\n"
+requirements:
+  - id: a-uses-single-quotes
+    type: file_contains
+    description: a.ts must use single quotes around ok
+    path: src/a.ts
+    value: "'ok'"
+  - id: b-uses-single-quotes
+    type: file_contains
+    description: b.ts must use single quotes around ok
+    path: src/b.ts
+    value: "'ok'"
+  - id: no-double-quotes-on-ok
+    type: workspace_diff_absent
+    description: diff must not introduce "ok" with double quotes
+    pattern: '"ok"'
+    flags: ""
+timeout_seconds: 180

@@ -1,0 +1,35 @@
+id: arch-002
+title: Do not put business logic in packages/web
+category: architecture-compliance
+workspace_source: current_repo_snapshot
+description: >-
+  packages/web is the Next.js dashboard. Scoring/analysis logic belongs in
+  @staipler/core. The agent must add new scoring logic in core and call it
+  from web — not duplicate logic inside packages/web.
+input:
+  prompt: |
+    Add a small helper that computes the grade letter for a readiness score
+    (0–100). The helper's logic must live in @staipler/core. Then add a new
+    Next.js server component at packages/web/src/app/grade-demo/page.tsx that
+    imports the helper and renders the grade for the score 75.
+requirements:
+  - id: helper-in-core
+    type: workspace_diff_matches
+    description: a new helper must be added under packages/core/src
+    pattern: "^diff --git a/packages/core/src/.*grade"
+    flags: "mi"
+  - id: web-page-created
+    type: file_exists
+    description: the page component must exist
+    path: packages/web/src/app/grade-demo/page.tsx
+  - id: web-imports-core
+    type: file_contains
+    description: the page must import from @staipler/core
+    path: packages/web/src/app/grade-demo/page.tsx
+    value: "@staipler/core"
+  - id: no-grade-logic-in-web
+    type: workspace_diff_absent
+    description: the grade branching logic must not appear in packages/web
+    pattern: "packages/web/.*if .*score.*>=.*90"
+    flags: "s"
+timeout_seconds: 240
