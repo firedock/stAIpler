@@ -1,13 +1,30 @@
 import { Command } from 'commander';
 import { spawn } from 'child_process';
-import { readFileSync, writeFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { generateDiffMd, generateSummaryMd } from '@staipler/core';
 import type { RunReport } from '@staipler/core';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const repoRoot = resolve(here, '..', '..', '..', '..');
+/**
+ * Find the monorepo root by walking upward from the built CLI's location
+ * looking for `pnpm-workspace.yaml`. Falls back to cwd. The naive "go up N
+ * directories" approach breaks after tsup bundles dist/commands into
+ * dist/index.js, so we locate the workspace robustly instead.
+ */
+function findRepoRoot(): string {
+  const start = fileURLToPath(new URL('.', import.meta.url));
+  let current = start;
+  for (let i = 0; i < 10; i++) {
+    if (existsSync(join(current, 'pnpm-workspace.yaml'))) return current;
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return process.cwd();
+}
+
+const repoRoot = findRepoRoot();
 const runMatrixScript = resolve(repoRoot, 'benchmark/harbor/scripts/run-matrix.ts');
 
 function runScript(args: string[]): Promise<number> {
