@@ -11,13 +11,26 @@ import { join, resolve, dirname } from 'path';
  */
 let cachedWalk: string | null = null;
 
+/**
+ * A pnpm-workspace.yaml can legitimately appear inside packages (to override
+ * builtDeps flags, etc.), so we can't use it alone as the repo-root sentinel.
+ * The monorepo root is uniquely identified by having BOTH pnpm-workspace.yaml
+ * AND the benchmark/harbor directory.
+ */
+function isRepoRoot(dir: string): boolean {
+  return (
+    existsSync(join(dir, 'pnpm-workspace.yaml')) &&
+    existsSync(join(dir, 'benchmark', 'harbor'))
+  );
+}
+
 export function repoRoot(): string {
   const override = process.env.STAIPLER_REPO_ROOT;
   if (override) return resolve(override);
   if (cachedWalk) return cachedWalk;
   let current = process.cwd();
-  for (let i = 0; i < 8; i++) {
-    if (existsSync(join(current, 'pnpm-workspace.yaml'))) {
+  for (let i = 0; i < 10; i++) {
+    if (isRepoRoot(current)) {
       cachedWalk = current;
       return cachedWalk;
     }

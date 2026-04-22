@@ -7,16 +7,23 @@ import { generateDiffMd, generateSummaryMd } from '@staipler/core';
 import type { RunReport } from '@staipler/core';
 
 /**
- * Find the monorepo root by walking upward from the built CLI's location
- * looking for `pnpm-workspace.yaml`. Falls back to cwd. The naive "go up N
- * directories" approach breaks after tsup bundles dist/commands into
- * dist/index.js, so we locate the workspace robustly instead.
+ * Find the monorepo root by walking upward from the built CLI's location.
+ *
+ * A pnpm-workspace.yaml can legitimately live inside a sub-package (to
+ * override builtDeps flags, etc.), so we key on the combination of
+ * pnpm-workspace.yaml + benchmark/harbor — a pair that only exists at the
+ * monorepo root.
  */
 function findRepoRoot(): string {
   const start = fileURLToPath(new URL('.', import.meta.url));
   let current = start;
   for (let i = 0; i < 10; i++) {
-    if (existsSync(join(current, 'pnpm-workspace.yaml'))) return current;
+    if (
+      existsSync(join(current, 'pnpm-workspace.yaml')) &&
+      existsSync(join(current, 'benchmark', 'harbor'))
+    ) {
+      return current;
+    }
     const parent = dirname(current);
     if (parent === current) break;
     current = parent;
