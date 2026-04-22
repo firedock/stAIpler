@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { decrypt } from '@/lib/crypto';
 
 /**
  * Knowledge layer — extract stage.
@@ -74,6 +75,31 @@ Return strict JSON only, shape:
   {"atoms": [ ... ]}
 No prose, no markdown fences, no commentary.`;
 
+/**
+ * Resolve a BYOK Anthropic key from agent_configs. Returns null if the
+ * project's configured provider is not Anthropic or no key is stored.
+ * Never falls back to server env vars — those would bill stAIpler for a
+ * user-initiated action.
+ */
+async function resolveProjectAnthropicKey(
+  supabase: SupabaseClient,
+  projectId: string,
+): Promise<string | null> {
+  const { data: agentConfig } = await supabase
+    .from('agent_configs')
+    .select('provider, api_key_encrypted')
+    .eq('project_id', projectId)
+    .maybeSingle();
+  if (!agentConfig || agentConfig.provider !== 'anthropic' || !agentConfig.api_key_encrypted) {
+    return null;
+  }
+  try {
+    return decrypt(agentConfig.api_key_encrypted);
+  } catch {
+    return null;
+  }
+}
+
 function formatTranscript(logs: LogRow[]): string {
   return logs
     .map(l => `[id=${l.id}] ${l.role.toUpperCase()} (${l.created_at}):\n${l.content}`)
@@ -140,9 +166,14 @@ export async function extractFromLogs(
     sessionId?: string | null;
   } = {},
 ): Promise<ExtractResult> {
-  const apiKey = process.env.STAIPLER_ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? null;
+  const apiKey = await resolveProjectAnthropicKey(supabase, projectId);
   if (!apiKey) {
-    return { runId: null, extractedCount: 0, logCount: 0, error: 'No Anthropic key configured' };
+    return {
+      runId: null,
+      extractedCount: 0,
+      logCount: 0,
+      error: 'Knowledge extraction requires an Anthropic API key. Add one in Settings (provider: Anthropic).',
+    };
   }
 
   // Open pipeline run

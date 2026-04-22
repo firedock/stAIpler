@@ -10,7 +10,8 @@ import { applyDecay, formatHandoffsForPrompt } from '@staipler/core';
 import type { HandoffPacket } from '@staipler/core';
 import { injectKnowledgeLayer, formatKnowledgeSection } from '@/lib/knowledge/inject';
 
-const HOSTED_MONTHLY_TOKEN_CAP = 50_000;
+const BYOK_REQUIRED_MESSAGE =
+  'A managed billing plan is not yet available. Bring your own API key (Anthropic or OpenAI) in Settings to continue.';
 
 const CANONICAL_ORDER = [
   'constraints', 'context', 'evals', 'examples',
@@ -310,9 +311,9 @@ export async function POST(request: Request) {
       }
     }
 
-    // Resolve API key: client-provided > persisted agent config > env var > hosted > none
+    // Resolve API key: client-provided > persisted agent config (BYOK only).
+    // "hosted" provider is not available until paid billing ships — see AGENTS.md.
     let resolvedKey = apiKey ?? null;
-    let isHosted = false;
 
     if (!resolvedKey && usePersistedKey) {
       const { data: agentConfig } = await supabase
@@ -323,29 +324,9 @@ export async function POST(request: Request) {
 
       if (agentConfig) {
         if (agentConfig.provider === 'hosted') {
-          // Hosted tier: use stAIpler's own Anthropic key
-          isHosted = true;
-          resolvedKey = process.env.STAIPLER_ANTHROPIC_API_KEY ?? null;
-
-          // Check usage cap for hosted tier
-          if (resolvedKey) {
-            const thirtyDaysAgo = new Date();
-            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-            const { data: usage } = await supabase
-              .from('usage_events')
-              .select('input_tokens, output_tokens')
-              .eq('project_id', projectId)
-              .gte('created_at', thirtyDaysAgo.toISOString());
-
-            const totalTokens = (usage ?? []).reduce((sum, u) => sum + u.input_tokens + u.output_tokens, 0);
-            if (totalTokens >= HOSTED_MONTHLY_TOKEN_CAP) {
-              return NextResponse.json({
-                error: 'You\'ve reached your free tier limit (50K tokens/month). Add your own API key in Settings to continue, or upgrade for more capacity.',
-              }, { status: 429 });
-            }
-          }
-        } else if (agentConfig.api_key_encrypted) {
-          // BYOB: decrypt persisted key
+          return NextResponse.json({ error: BYOK_REQUIRED_MESSAGE }, { status: 402 });
+        }
+        if (agentConfig.api_key_encrypted) {
           try {
             resolvedKey = decrypt(agentConfig.api_key_encrypted);
           } catch {
@@ -355,16 +336,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fallback to env vars
-    if (!resolvedKey) {
-      resolvedKey = resolvedProvider === 'anthropic' ? (process.env.ANTHROPIC_API_KEY ?? null) :
-                    resolvedProvider === 'openai' ? (process.env.OPENAI_API_KEY ?? null) : null;
-    }
-
     if (resolvedProvider !== 'claude-cli' && !resolvedKey) {
-      return NextResponse.json({
-        error: `No API key configured for ${resolvedProvider}. Add one in Settings or set ${resolvedProvider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'} env var.`,
-      }, { status: 400 });
+      return NextResponse.json({ error: BYOK_REQUIRED_MESSAGE }, { status: 402 });
     }
 
     const encoder = new TextEncoder();
@@ -421,18 +394,6 @@ export async function POST(request: Request) {
               controller.close();
           }
 
-          // Log usage for hosted tier (approximate token count)
-          if (isHosted) {
-            const inputChars = (systemPrompt.length + messages.reduce((s: number, m: any) => s + m.content.length, 0));
-            const inputTokens = Math.ceil(inputChars / 4);
-            const outputTokens = 500; // estimate; exact counts require provider callback changes
-            supabase.from('usage_events').insert({
-              project_id: projectId,
-              input_tokens: inputTokens,
-              output_tokens: outputTokens,
-              model: resolvedModel,
-            }).then(() => {}); // fire and forget
-          }
         } catch (err) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: err instanceof Error ? err.message : 'Stream error' })}\n\n`));
           controller.close();

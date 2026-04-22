@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
+import { decrypt } from '@/lib/crypto';
 
 /**
  * Knowledge layer — reconcile stage.
@@ -43,13 +44,44 @@ interface MatchRow {
   similarity: number;
 }
 
+/**
+ * Resolve a BYOK OpenAI key from agent_configs. Returns null unless the
+ * project is configured with provider='openai'. Never falls back to server
+ * env vars — embedding work on a hosted tier is not supported until billing ships.
+ */
+async function resolveProjectOpenAIKey(
+  supabase: SupabaseClient,
+  projectId: string,
+): Promise<string | null> {
+  const { data: agentConfig } = await supabase
+    .from('agent_configs')
+    .select('provider, api_key_encrypted')
+    .eq('project_id', projectId)
+    .maybeSingle();
+  if (!agentConfig || agentConfig.provider !== 'openai' || !agentConfig.api_key_encrypted) {
+    return null;
+  }
+  try {
+    return decrypt(agentConfig.api_key_encrypted);
+  } catch {
+    return null;
+  }
+}
+
 export async function reconcileAtoms(
   supabase: SupabaseClient,
   projectId: string,
 ): Promise<ReconcileResult> {
-  const apiKey = process.env.OPENAI_API_KEY ?? null;
+  const apiKey = await resolveProjectOpenAIKey(supabase, projectId);
   if (!apiKey) {
-    return { runId: null, embedded: 0, pairsDetected: 0, error: 'No OpenAI key configured for embeddings' };
+    // Reconcile is non-blocking: without an OpenAI BYOK, embeddings are skipped.
+    // Atoms still reach the review queue — they just aren't deduped/clustered.
+    return {
+      runId: null,
+      embedded: 0,
+      pairsDetected: 0,
+      error: 'Embedding reconciliation skipped: configure an OpenAI API key to enable similarity detection.',
+    };
   }
 
   // Open pipeline run

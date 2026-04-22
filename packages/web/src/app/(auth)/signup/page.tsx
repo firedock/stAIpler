@@ -23,9 +23,9 @@ export default function SignupPage() {
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
 
+    setLoading(false);
     if (error) {
       setError(error.message);
-      setLoading(false);
     } else {
       setSuccess(true);
     }
@@ -33,18 +33,20 @@ export default function SignupPage() {
 
   async function handleGitHubLogin() {
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
+    if (error) setError(error.message);
   }
 
   async function handleGoogleLogin() {
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
+    if (error) setError(error.message);
   }
 
   if (success) {

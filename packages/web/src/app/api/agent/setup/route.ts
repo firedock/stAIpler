@@ -13,8 +13,13 @@ export async function POST(request: Request) {
     if (!displayName?.trim()) {
       return NextResponse.json({ error: 'Display name is required' }, { status: 400 });
     }
-    if (!provider || !['anthropic', 'openai', 'hosted'].includes(provider)) {
-      return NextResponse.json({ error: 'Valid provider is required' }, { status: 400 });
+    if (!provider || !['anthropic', 'openai'].includes(provider)) {
+      return NextResponse.json({
+        error: 'Provider must be "anthropic" or "openai". A managed plan is not yet available — bring your own key to continue.',
+      }, { status: 400 });
+    }
+    if (!apiKey) {
+      return NextResponse.json({ error: 'An API key is required to configure this provider.' }, { status: 400 });
     }
 
     // Create project
@@ -40,9 +45,7 @@ export async function POST(request: Request) {
       display_name: displayName.trim(),
     };
 
-    if (provider !== 'hosted' && apiKey) {
-      agentConfig.api_key_encrypted = encrypt(apiKey);
-    }
+    agentConfig.api_key_encrypted = encrypt(apiKey);
 
     const { error: configError } = await supabase
       .from('agent_configs')
@@ -64,7 +67,6 @@ function defaultModel(provider: string): string {
   switch (provider) {
     case 'anthropic': return 'claude-sonnet-4-20250514';
     case 'openai': return 'gpt-4o';
-    case 'hosted': return 'claude-sonnet-4-20250514';
     default: return 'claude-sonnet-4-20250514';
   }
 }

@@ -193,19 +193,13 @@ function StepBrain({ provider, setProvider, apiKey, setApiKey, model, setModel, 
 }) {
   const providers = [
     {
-      id: 'hosted',
-      name: 'Let stAIpler handle it',
-      desc: 'Start chatting immediately. No setup required.',
-      detail: 'Free tier includes 50K tokens/month.',
-      highlight: true,
-    },
-    {
       id: 'anthropic',
       name: 'Claude by Anthropic',
       desc: 'Excellent at following instructions and staying safe.',
       detail: 'Requires an API key from anthropic.com',
       models: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-haiku-4-5-20251001'],
       modelLabels: ['Sonnet (balanced)', 'Opus (most capable)', 'Haiku (fastest)'],
+      highlight: true,
     },
     {
       id: 'openai',
@@ -218,13 +212,13 @@ function StepBrain({ provider, setProvider, apiKey, setApiKey, model, setModel, 
   ];
 
   const selectedProvider = providers.find(p => p.id === provider);
-  const needsKey = provider !== 'hosted';
+  const needsKey = true;
 
   return (
     <div className="max-w-lg mx-auto">
       <h2 className="text-2xl font-bold mb-2">Choose your AI brain</h2>
       <p className="text-sm text-slate-400 mb-8">
-        Pick the AI that powers your assistant. Not sure? Start with our hosted option — no setup needed.
+        Pick the AI that powers your assistant. You provide the API key — usage is billed to your own provider account while we finish our managed plan.
       </p>
 
       <div className="space-y-3">
@@ -346,7 +340,7 @@ function StepReady({ displayName, provider, uploadedFiles, creating, onCreate }:
   creating: boolean;
   onCreate: () => void;
 }) {
-  const providerLabel = provider === 'hosted' ? 'stAIpler (hosted)' : provider === 'anthropic' ? 'Claude by Anthropic' : 'GPT by OpenAI';
+  const providerLabel = provider === 'anthropic' ? 'Claude by Anthropic' : 'GPT by OpenAI';
 
   return (
     <div className="max-w-md mx-auto text-center">
@@ -405,7 +399,7 @@ export function AgentSetupWizard() {
   const [pendingFiles, setPendingFiles] = useState<{ name: string; content: string }[]>([]);
 
   // Step 3 state
-  const [provider, setProvider] = useState('hosted');
+  const [provider, setProvider] = useState('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('claude-sonnet-4-20250514');
   const [testResult, setTestResult] = useState<{ valid: boolean; error?: string } | null>(null);
@@ -481,7 +475,7 @@ export function AgentSetupWizard() {
           description,
           provider,
           model,
-          apiKey: provider !== 'hosted' ? apiKey : undefined,
+          apiKey,
         }),
       });
       const { projectId, error } = await setupRes.json();

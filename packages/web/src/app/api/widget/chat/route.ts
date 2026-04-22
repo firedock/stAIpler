@@ -112,11 +112,15 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Agent not configured' }, { status: 404 });
     }
 
-    // Resolve API key
-    let apiKey: string | null = null;
+    // Resolve API key — BYOK only. "hosted" is not available until paid billing ships.
     if (agentConfig.provider === 'hosted') {
-      apiKey = process.env.STAIPLER_ANTHROPIC_API_KEY ?? null;
-    } else if (agentConfig.api_key_encrypted) {
+      return Response.json({
+        error: 'This assistant is not active. The owner must add an API key (Anthropic or OpenAI) in Settings.',
+      }, { status: 402 });
+    }
+
+    let apiKey: string | null = null;
+    if (agentConfig.api_key_encrypted) {
       try { apiKey = decrypt(agentConfig.api_key_encrypted); } catch { /* Decryption failed — will be caught by the !apiKey check below */ }
     }
 
@@ -134,8 +138,7 @@ export async function POST(request: Request) {
     const systemPrompt = compiled.prompt;
     const citations = compiled.citations;
 
-    // Determine provider (hosted always uses Anthropic)
-    const provider = agentConfig.provider === 'hosted' ? 'anthropic' : agentConfig.provider;
+    const provider = agentConfig.provider;
     const model = agentConfig.model;
 
     // Stream response
@@ -171,17 +174,6 @@ export async function POST(request: Request) {
               const text = chunk.choices[0]?.delta?.content;
               if (text) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
             }
-          }
-
-          // Log usage for hosted tier
-          if (agentConfig.provider === 'hosted') {
-            const inputChars = systemPrompt.length + messages.reduce((s: number, m: any) => s + m.content.length, 0);
-            supabase.from('usage_events').insert({
-              project_id: deployToken.project_id,
-              input_tokens: Math.ceil(inputChars / 4),
-              output_tokens: 500,
-              model,
-            }).then(() => {});
           }
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
