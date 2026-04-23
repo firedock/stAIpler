@@ -1,6 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import type { AnalysisResult } from './analyzer.js';
+import type { ContinuityConfig } from '../config.js';
+import { DEFAULT_CONTINUITY_CONFIG } from '../config.js';
+import { renderContinuitySection } from './continuity-status.js';
 
 const START_TAG = '<!-- staipler:status -->';
 const END_TAG = '<!-- /staipler:status -->';
@@ -8,8 +11,15 @@ const END_TAG = '<!-- /staipler:status -->';
 /**
  * Generate the status block that gets injected into agent config files.
  * This tells the agent about its own blind spots.
+ *
+ * The optional continuity config controls how the handoff thread table is
+ * rendered (sort, inline cap, stale warning threshold). When omitted, defaults
+ * apply — callers in older code paths continue to work unchanged.
  */
-export function generateStatusBlock(analysis: AnalysisResult): string {
+export function generateStatusBlock(
+  analysis: AnalysisResult,
+  continuityConfig: ContinuityConfig = DEFAULT_CONTINUITY_CONFIG,
+): string {
   const { readinessScore, grade, layers } = analysis;
   const missing = layers.filter(l => l.status === 'missing');
   const weak = layers.filter(l => l.status === 'weak');
@@ -44,6 +54,14 @@ export function generateStatusBlock(analysis: AnalysisResult): string {
 
   if (weak.length > 0) {
     lines.push(`Weak layers (need improvement): ${weak.map(l => `${l.kind} (${l.qualityScore}/100)`).join(', ')}`);
+    lines.push('');
+  }
+
+  // Continuity section — between the layer summary and the coverage tallies.
+  const continuityLayer = layers.find(l => l.kind === 'continuity');
+  const continuityBlock = renderContinuitySection(continuityLayer?.files ?? [], continuityConfig);
+  if (continuityBlock.length > 0) {
+    lines.push(continuityBlock);
     lines.push('');
   }
 
@@ -121,8 +139,12 @@ export function findInjectTarget(projectRoot: string, configInject: string | nul
  * Inject the status block into an agent config file.
  * If a block already exists, replace it. Otherwise, append it.
  */
-export function injectStatus(filePath: string, analysis: AnalysisResult): { created: boolean; updated: boolean } {
-  const block = generateStatusBlock(analysis);
+export function injectStatus(
+  filePath: string,
+  analysis: AnalysisResult,
+  continuityConfig: ContinuityConfig = DEFAULT_CONTINUITY_CONFIG,
+): { created: boolean; updated: boolean } {
+  const block = generateStatusBlock(analysis, continuityConfig);
   let created = false;
   let updated = false;
 

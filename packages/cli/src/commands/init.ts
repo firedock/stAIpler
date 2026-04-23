@@ -60,7 +60,7 @@ export const initCommand = new Command('init')
     console.log(`\n  ${purple}${bold}stAIpler init${r} — setting up ${projectName}\n`);
 
     // Step 1: Check for existing config
-    const { configPath: existingConfig } = loadConfig(projectDir);
+    const { config: loadedConfig, configPath: existingConfig } = loadConfig(projectDir);
     if (existingConfig && resolve(existingConfig) === configPath) {
       console.log(`  ${dim}Updating existing .staipler.json${r}`);
     }
@@ -93,7 +93,7 @@ export const initCommand = new Command('init')
     // Step 5: Inject status into agent file
     if (injectTarget) {
       const targetPath = resolve(projectDir, injectTarget);
-      injectStatus(targetPath, analysis);
+      injectStatus(targetPath, analysis, loadedConfig.continuity);
     }
 
     // Step 6: Save initial KPI snapshot

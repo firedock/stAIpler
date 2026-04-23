@@ -13,7 +13,7 @@ import {
 import type { AnalysisResult, KpiSnapshot, ScanResult } from '@staipler/core';
 
 const LAYER_ORDER = [
-  'constraints', 'context', 'evals', 'examples',
+  'constraints', 'context', 'continuity', 'evals', 'examples',
   'goals', 'identity', 'memory', 'policies',
   'prompts', 'skills', 'style', 'tools',
 ];
@@ -21,6 +21,7 @@ const LAYER_ORDER = [
 const LAYER_HINTS: Record<string, string> = {
   constraints: 'Limits',
   context: 'Domain',
+  continuity: 'Handoffs',
   evals: 'Tests',
   examples: 'Few-shot',
   goals: 'Priorities',
@@ -164,7 +165,7 @@ export const watchCommand = new Command('watch')
         if (opts.inject || config.inject) {
           const target = findInjectTarget(projectRoot, config.inject);
           if (target) {
-            injectStatus(target, analysis);
+            injectStatus(target, analysis, config.continuity);
           }
         }
       } catch (err) {

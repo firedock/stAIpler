@@ -1,9 +1,29 @@
 import { existsSync, readFileSync, readdirSync, lstatSync } from 'fs';
 import { resolve, join, relative, basename } from 'path';
+import matter from 'gray-matter';
 import { parseAssetFile } from '../parser.js';
 import { FILE_TYPES, getFileTypeInfo } from './file-types.js';
 import type { Asset, LayerType } from '../types.js';
 import { LAYER_TYPES } from '../schema.js';
+
+/**
+ * Handoff document frontmatter (written by the /handoff skill).
+ * All fields are populated when valid; malformed frontmatter yields `null`
+ * on ScannedFile.handoffMetadata and logs nothing — the scan is non-fatal.
+ */
+export type HandoffStatus =
+  | 'open' | 'in-progress' | 'paused' | 'blocked' | 'closed' | 'done' | 'abandoned';
+export type HandoffSessionType = 'code-change' | 'design/meta' | 'exploration';
+
+export interface HandoffMetadata {
+  title: string;
+  thread: string;
+  date: string;         // YYYY-MM-DD
+  status: HandoffStatus;
+  sessionType: HandoffSessionType;
+  continues: string | null;
+  summary: string;
+}
 
 export interface ScannedFile {
   /** Absolute path */
@@ -18,6 +38,8 @@ export interface ScannedFile {
   sourceType: string;
   /** Parsed asset if valid stAIpler format, null otherwise */
   parsedAsset: Asset | null;
+  /** Parsed handoff frontmatter (continuity layer only); null otherwise or if frontmatter was missing/malformed */
+  handoffMetadata: HandoffMetadata | null;
   /** Inferred layer type (even for non-native files) */
   inferredKind: LayerType | null;
   /** Confidence of the inference (0-1) */
@@ -131,6 +153,68 @@ export function parseHandoffDate(fileName: string): Date | null {
   const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
   if (Number.isNaN(date.getTime())) return null;
   return date;
+}
+
+const VALID_HANDOFF_STATUS: readonly HandoffStatus[] = [
+  'open', 'in-progress', 'paused', 'blocked', 'closed', 'done', 'abandoned',
+] as const;
+
+const VALID_HANDOFF_SESSION_TYPES: readonly HandoffSessionType[] = [
+  'code-change', 'design/meta', 'exploration',
+] as const;
+
+/**
+ * Parse handoff YAML frontmatter into HandoffMetadata, or null if missing/malformed.
+ *
+ * Never throws — a bad frontmatter block means the scan keeps going. Unknown
+ * status/session_type values fall back to defaults (`in-progress` / `code-change`)
+ * so a slightly-off file still contributes partial signal to Phase 2 rendering.
+ */
+/** Normalize a value that might be a YAML Date, a string, or something else. */
+function asDateString(value: unknown): string | null {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+export function parseHandoffFrontmatter(content: string): HandoffMetadata | null {
+  if (!content.trimStart().startsWith('---')) return null;
+
+  let parsed: ReturnType<typeof matter>;
+  try {
+    parsed = matter(content);
+  } catch {
+    return null;
+  }
+
+  const data = parsed.data as Record<string, unknown>;
+  if (!data || typeof data !== 'object') return null;
+
+  const title = asNonEmptyString(data.title);
+  const thread = asNonEmptyString(data.thread);
+  const date = asDateString(data.date);
+  const summary = asNonEmptyString(data.summary);
+  if (!title || !thread || !date || !summary) return null;
+
+  const status: HandoffStatus = VALID_HANDOFF_STATUS.includes(data.status as HandoffStatus)
+    ? (data.status as HandoffStatus)
+    : 'in-progress';
+
+  const sessionType: HandoffSessionType = VALID_HANDOFF_SESSION_TYPES.includes(data.session_type as HandoffSessionType)
+    ? (data.session_type as HandoffSessionType)
+    : 'code-change';
+
+  const continues = typeof data.continues === 'string' && data.continues.length > 0
+    ? data.continues
+    : null;
+
+  return { title, thread, date, status, sessionType, continues, summary };
 }
 
 function classifySourceType(relativePath: string): string {
@@ -270,6 +354,10 @@ function walkFiles(dir: string, rootDir: string, results: ScannedFile[]): void {
       inferredConfidence = inference.confidence;
     }
 
+    const handoffMetadata = inferredKind === 'continuity'
+      ? parseHandoffFrontmatter(content)
+      : null;
+
     results.push({
       path: fullPath,
       relativePath,
@@ -277,6 +365,7 @@ function walkFiles(dir: string, rootDir: string, results: ScannedFile[]): void {
       content,
       sourceType,
       parsedAsset,
+      handoffMetadata,
       inferredKind,
       inferredConfidence,
       contentLength: content.length,
@@ -331,6 +420,7 @@ function scanMcpConfigs(rootDir: string, results: ScannedFile[]): void {
       content: summary,
       sourceType: 'mcp-config',
       parsedAsset: null,
+      handoffMetadata: null,
       inferredKind: 'tools',
       inferredConfidence: 0.95,
       contentLength: content.length,
@@ -741,6 +831,7 @@ export function scan(rootDir: string): ScanResult {
       content: `Runtime memory provided by ${memoryProvider.name} (detected via ${memoryProvider.detectedVia}: ${memoryProvider.source})`,
       sourceType: 'memory-provider',
       parsedAsset: null,
+      handoffMetadata: null,
       inferredKind: 'memory',
       inferredConfidence: 0.85,
       contentLength: 0,

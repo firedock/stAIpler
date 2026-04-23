@@ -2,8 +2,21 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { scan, parseHandoffDate } from '../src/optimizer/scanner.js';
+import { scan, parseHandoffDate, parseHandoffFrontmatter } from '../src/optimizer/scanner.js';
 import { analyze } from '../src/optimizer/analyzer.js';
+
+const VALID_FRONTMATTER = `---
+title: Example Handoff
+thread: example-thread
+date: 2026-04-22
+status: in-progress
+session_type: code-change
+continues: null
+summary: Example one-line summary for tests.
+---
+
+# Body
+`;
 
 function makeProject(): string {
   const dir = mkdtempSync(join(tmpdir(), 'staipler-continuity-'));
@@ -170,6 +183,161 @@ describe('analyzer — continuity scoring', () => {
       const continuity = result.layers.find(l => l.kind === 'continuity')!;
       // 40 base + 30 fresh + 15 chain>=2 = 85
       expect(continuity.qualityScore).toBe(85);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('parseHandoffFrontmatter', () => {
+  it('parses a complete valid frontmatter block', () => {
+    const meta = parseHandoffFrontmatter(VALID_FRONTMATTER);
+    expect(meta).not.toBeNull();
+    expect(meta!.title).toBe('Example Handoff');
+    expect(meta!.thread).toBe('example-thread');
+    expect(meta!.date).toBe('2026-04-22');
+    expect(meta!.status).toBe('in-progress');
+    expect(meta!.sessionType).toBe('code-change');
+    expect(meta!.continues).toBeNull();
+    expect(meta!.summary).toBe('Example one-line summary for tests.');
+  });
+
+  it('returns null for content with no frontmatter', () => {
+    expect(parseHandoffFrontmatter('# Just a body, no YAML\n')).toBeNull();
+    expect(parseHandoffFrontmatter('')).toBeNull();
+  });
+
+  it('returns null for malformed YAML', () => {
+    const malformed = `---
+title: broken
+thread: [unterminated
+---
+
+body
+`;
+    expect(parseHandoffFrontmatter(malformed)).toBeNull();
+  });
+
+  it('returns null when a required field is missing', () => {
+    const noThread = `---
+title: Missing Thread
+date: 2026-04-22
+summary: Should not parse
+---
+`;
+    expect(parseHandoffFrontmatter(noThread)).toBeNull();
+  });
+
+  it('returns null when a required field is empty', () => {
+    const emptySummary = `---
+title: Empty Summary
+thread: example
+date: 2026-04-22
+summary: ""
+---
+`;
+    expect(parseHandoffFrontmatter(emptySummary)).toBeNull();
+  });
+
+  it('falls back to in-progress for an unknown status value', () => {
+    const weird = `---
+title: Weird Status
+thread: example
+date: 2026-04-22
+status: weird-made-up-status
+summary: Test
+---
+`;
+    const meta = parseHandoffFrontmatter(weird);
+    expect(meta).not.toBeNull();
+    expect(meta!.status).toBe('in-progress');
+  });
+
+  it('falls back to code-change for an unknown session_type value', () => {
+    const weird = `---
+title: Weird Session Type
+thread: example
+date: 2026-04-22
+session_type: not-a-real-type
+summary: Test
+---
+`;
+    const meta = parseHandoffFrontmatter(weird);
+    expect(meta).not.toBeNull();
+    expect(meta!.sessionType).toBe('code-change');
+  });
+
+  it('reads a populated continues filename when present', () => {
+    const chained = `---
+title: Second In Chain
+thread: example
+date: 2026-04-22
+continues: 2026-04-15-first-in-chain.md
+summary: Continues a prior session
+---
+`;
+    const meta = parseHandoffFrontmatter(chained);
+    expect(meta).not.toBeNull();
+    expect(meta!.continues).toBe('2026-04-15-first-in-chain.md');
+  });
+
+  it('accepts all documented status values', () => {
+    const statuses = ['open', 'in-progress', 'paused', 'blocked', 'closed', 'done', 'abandoned'];
+    for (const status of statuses) {
+      const fm = `---
+title: Test
+thread: example
+date: 2026-04-22
+status: ${status}
+summary: Status test
+---
+`;
+      const meta = parseHandoffFrontmatter(fm);
+      expect(meta).not.toBeNull();
+      expect(meta!.status).toBe(status);
+    }
+  });
+});
+
+describe('scanner — handoffMetadata population', () => {
+  it('populates handoffMetadata on continuity files with valid frontmatter', () => {
+    const dir = makeProject();
+    try {
+      addHandoff(dir, `${daysAgo(1)}-test-handoff.md`, VALID_FRONTMATTER);
+      const result = scan(dir);
+      const continuityFiles = result.byKind.continuity ?? [];
+      expect(continuityFiles).toHaveLength(1);
+      expect(continuityFiles[0].handoffMetadata).not.toBeNull();
+      expect(continuityFiles[0].handoffMetadata!.thread).toBe('example-thread');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves handoffMetadata null for handoff files with no frontmatter', () => {
+    const dir = makeProject();
+    try {
+      addHandoff(dir, `${daysAgo(1)}-no-frontmatter.md`, '# body only\n');
+      const result = scan(dir);
+      const continuityFiles = result.byKind.continuity ?? [];
+      expect(continuityFiles).toHaveLength(1);
+      expect(continuityFiles[0].handoffMetadata).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves handoffMetadata null for non-continuity files', () => {
+    const dir = makeProject();
+    try {
+      // memory.md classifies as memory via FILENAME_LAYER_MAP — a definitely-non-continuity file.
+      writeFileSync(join(dir, 'memory.md'), '# memory placeholder\n');
+      const result = scan(dir);
+      const memoryFiles = result.files.filter(f => f.inferredKind === 'memory');
+      expect(memoryFiles.length).toBeGreaterThan(0);
+      for (const f of memoryFiles) {
+        expect(f.handoffMetadata).toBeNull();
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

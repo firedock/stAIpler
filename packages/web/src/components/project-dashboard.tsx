@@ -17,7 +17,7 @@ import { HandoffsPanel } from '@/components/handoffs-panel';
 import { DeleteProjectButton } from '@/components/delete-project-button';
 
 const LAYER_TYPES = [
-  'constraints', 'context', 'evals', 'examples',
+  'constraints', 'context', 'continuity', 'evals', 'examples',
   'goals', 'identity', 'memory', 'policies',
   'prompts', 'skills', 'style', 'tools',
 ] as const;

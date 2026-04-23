@@ -60,7 +60,7 @@ export async function GET(request: Request) {
       .filter(h => h.status === 'active');
 
     // Build layer summary
-    const CANONICAL_ORDER = ['identity', 'constraints', 'context', 'goals', 'skills', 'style', 'policies', 'examples', 'tools', 'evals', 'prompts', 'memory'];
+    const CANONICAL_ORDER = ['identity', 'constraints', 'context', 'goals', 'skills', 'style', 'policies', 'examples', 'tools', 'evals', 'prompts', 'memory', 'continuity'];
     const sectionsByLayer = new Map<string, any>();
     if (bundle?.sections) {
       for (const section of bundle.sections) sectionsByLayer.set(section.layer, section);
