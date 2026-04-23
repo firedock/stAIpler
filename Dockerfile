@@ -16,7 +16,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
 COPY . .
 RUN pnpm --filter @staipler/core build
-RUN pnpm --filter web build
+# Source NEXT_PUBLIC_* values into the shell so Turbopack inlines them
+# into the browser bundle. Loading them via `.env.production` alone is
+# not reliable under Turbopack (Next.js 16) — values must be in the
+# process env at the moment `next build` runs.
+RUN set -a && . ./packages/web/.env.production && set +a && pnpm --filter web build
 
 # Production runner — Next.js standalone output
 FROM node:20-alpine AS runner
