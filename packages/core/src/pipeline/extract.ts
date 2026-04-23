@@ -60,6 +60,7 @@ const KIND_SIGNALS: Record<LayerType, RegExp[]> = {
   memory: [/\bmemory\b/i, /\bremember\b/i, /\bsession/i],
   evals: [/\beval/i, /\btest case/i, /\bassert/i, /\baccept.*criteria/i],
   prompts: [/\bprompt/i, /\btemplate/i, /\bsnippet/i],
+  continuity: [/\bhandoff\b/i, /\bsession story\b/i, /\bnext agent\b/i, /\bthread:\s*[\w-]+/i],
 };
 
 /** Layer descriptions used for semantic extraction prompts */
@@ -76,6 +77,7 @@ const LAYER_DESCRIPTIONS: Record<LayerType, string> = {
   memory: 'What to remember across interactions — user preferences, session state',
   evals: 'Test cases, assertions, acceptance criteria, evaluation intent',
   prompts: 'Reusable prompt fragments, message templates, tested instruction snippets',
+  continuity: 'Session handoffs under docs/handoffs/ — records of prior work so the next agent can resume cleanly. Authored by the /handoff skill at session end.',
 };
 
 // ---- Fast path extraction ----

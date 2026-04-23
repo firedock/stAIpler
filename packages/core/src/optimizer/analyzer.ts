@@ -1,4 +1,5 @@
 import type { ScanResult, ScannedFile } from './scanner.js';
+import { parseHandoffDate } from './scanner.js';
 import type { LayerType } from '../types.js';
 import { LAYER_TYPES, REQUIRED_LAYER_TYPES } from '../schema.js';
 
@@ -46,6 +47,7 @@ const LAYER_IMPORTANCE: Record<LayerType, 'critical' | 'recommended' | 'optional
   evals: 'optional',
   prompts: 'optional',
   memory: 'optional',
+  continuity: 'recommended',
 };
 
 const LAYER_DESCRIPTIONS: Record<LayerType, { when_missing: string; when_weak: string; recommendation: string }> = {
@@ -109,9 +111,53 @@ const LAYER_DESCRIPTIONS: Record<LayerType, { when_missing: string; when_weak: s
     when_weak: 'Memory layer exists but placeholder content may need updating.',
     recommendation: 'Define runtime memory injection points for session/user context.',
   },
+  continuity: {
+    when_missing: 'No session handoffs recorded. New agent sessions start cold without context from prior work.',
+    when_weak: 'Handoffs exist but are stale — the latest is more than 30 days old, so it likely no longer reflects reality.',
+    recommendation: 'Run the /handoff skill at the end of each working session to record a handoff under docs/handoffs/ so the next agent can pick up cleanly.',
+  },
 };
 
+/**
+ * Continuity is scored by presence + freshness of the most recent handoff
+ * + chain length (sustained discipline), not by content richness.
+ *
+ * The filename carries a YYYY-MM-DD date prefix; we derive age from that rather
+ * than file mtime so handoffs copied between machines still score correctly.
+ */
+function scoreContinuityLayer(files: ScannedFile[], now: Date = new Date()): number {
+  if (files.length === 0) return 0;
+
+  const datedFiles = files
+    .map(f => ({ file: f, date: parseHandoffDate(f.name) }))
+    .filter((x): x is { file: ScannedFile; date: Date } => x.date !== null);
+
+  if (datedFiles.length === 0) {
+    // Handoffs exist but none has a parseable date prefix — treat as weak presence.
+    return 30;
+  }
+
+  const mostRecent = datedFiles.reduce((a, b) => (a.date > b.date ? a : b));
+  const ageDays = Math.max(0, Math.floor((now.getTime() - mostRecent.date.getTime()) / 86_400_000));
+
+  let score = 40; // Base for at least one dated handoff
+
+  // Freshness of most recent handoff
+  if (ageDays <= 7) score += 30;
+  else if (ageDays <= 14) score += 20;
+  else if (ageDays <= 30) score += 10;
+  // >30 days → no freshness bonus
+
+  // Chain length — sustained discipline across sessions
+  if (datedFiles.length >= 2) score += 15;
+  if (datedFiles.length >= 5) score += 10;
+
+  return Math.min(100, score);
+}
+
 function scoreLayer(kind: LayerType, files: ScannedFile[]): number {
+  if (kind === 'continuity') return scoreContinuityLayer(files);
+
   if (files.length === 0) return 0;
 
   let score = 30; // Base score for having any content

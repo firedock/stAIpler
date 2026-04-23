@@ -242,10 +242,14 @@ describe('StackDefinitionSchema', () => {
 describe('Constants', () => {
   it('LAYER_TYPES includes all static and runtime types', () => {
     expect(LAYER_TYPES).toEqual([
-      'constraints', 'context', 'evals', 'examples',
+      'constraints', 'context', 'continuity', 'evals', 'examples',
       'goals', 'identity', 'memory', 'policies',
       'prompts', 'skills', 'style', 'tools',
     ]);
+  });
+
+  it('RUNTIME_LAYER_TYPES includes memory and continuity', () => {
+    expect(RUNTIME_LAYER_TYPES).toEqual(['memory', 'continuity']);
   });
 
   it('REQUIRED_LAYER_TYPES is identity and constraints', () => {
@@ -265,5 +269,6 @@ describe('Constants', () => {
     expect(DEFAULT_MERGE_STRATEGIES.evals).toBe('concatenate');
     expect(DEFAULT_MERGE_STRATEGIES.prompts).toBe('concatenate');
     expect(DEFAULT_MERGE_STRATEGIES.memory).toBe('concatenate');
+    expect(DEFAULT_MERGE_STRATEGIES.continuity).toBe('last-wins');
   });
 });

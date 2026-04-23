@@ -12,6 +12,10 @@ packages/web/.turbo
 .env.*
 !.env.example
 !.env.*.example
+# packages/web/.env.production holds NEXT_PUBLIC_* values that must be
+# present during the in-container `next build` so they're inlined into
+# the browser bundle. These are public values — no secrets here.
+!packages/web/.env.production
 coverage
 packages/cli/coverage
 packages/core/coverage

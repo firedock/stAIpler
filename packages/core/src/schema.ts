@@ -9,11 +9,11 @@ export const STATIC_LAYER_TYPES = [
   'skills', 'style', 'tools',
 ] as const;
 
-export const RUNTIME_LAYER_TYPES = ['memory'] as const;
+export const RUNTIME_LAYER_TYPES = ['memory', 'continuity'] as const;
 
 /** All layer types in alphabetical order */
 export const LAYER_TYPES: LayerType[] = [
-  'constraints', 'context', 'evals', 'examples',
+  'constraints', 'context', 'continuity', 'evals', 'examples',
   'goals', 'identity', 'memory', 'policies',
   'prompts', 'skills', 'style', 'tools',
 ];
@@ -33,11 +33,12 @@ export const DEFAULT_MERGE_STRATEGIES: Record<LayerType, MergeStrategy> = {
   evals: 'concatenate',
   prompts: 'concatenate',
   memory: 'concatenate',
+  continuity: 'last-wins',
 };
 
 // === Canonical section order (alphabetical) ===
 export const CANONICAL_SECTION_ORDER: LayerType[] = [
-  'constraints', 'context', 'evals', 'examples',
+  'constraints', 'context', 'continuity', 'evals', 'examples',
   'goals', 'identity', 'memory', 'policies',
   'prompts', 'skills', 'style', 'tools',
 ];
@@ -50,6 +51,7 @@ const LayerTypeSchema = z.enum([
   'identity', 'goals', 'context', 'constraints',
   'skills', 'style', 'examples', 'tools',
   'policies', 'evals', 'prompts', 'memory',
+  'continuity',
 ]);
 
 const MergeStrategySchema = z.enum(['concatenate', 'last-wins']);

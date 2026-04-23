@@ -113,6 +113,26 @@ const AI_TOOL_FILES = new Set([
   'copilot-instructions.md',
 ]);
 
+/**
+ * Handoff files: docs/handoffs/YYYY-MM-DD-<slug>.md (session continuity records).
+ * INDEX.md inside docs/handoffs/ is an auto-generated table of contents, not a handoff itself.
+ */
+const HANDOFF_FILE_REGEX = /(^|[/\\])docs[/\\]handoffs[/\\]\d{4}-\d{2}-\d{2}-[^/\\]+\.md$/i;
+
+function isHandoffPath(relativePath: string): boolean {
+  return HANDOFF_FILE_REGEX.test(relativePath);
+}
+
+/** Extract YYYY-MM-DD date prefix from a handoff filename; null if malformed. */
+export function parseHandoffDate(fileName: string): Date | null {
+  const match = fileName.match(/^(\d{4})-(\d{2})-(\d{2})-/);
+  if (!match) return null;
+  const [, y, m, d] = match;
+  const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
 function classifySourceType(relativePath: string): string {
   for (const fileType of FILE_TYPES) {
     for (const pattern of fileType.patterns) {
@@ -123,17 +143,22 @@ function classifySourceType(relativePath: string): string {
 }
 
 /**
- * Classify a file's layer type by filename and source type only.
+ * Classify a file's layer type by filename, path, and source type only.
  * No keyword/content guessing — only explicit matches.
  */
-function inferKind(fileName: string, sourceType: string): { kind: LayerType | null; confidence: number } {
-  // 1. Direct filename match (e.g., CONSTRAINTS.md → constraints)
+function inferKind(fileName: string, relativePath: string, sourceType: string): { kind: LayerType | null; confidence: number } {
+  // 1. Handoff file path match (docs/handoffs/YYYY-MM-DD-*.md → continuity)
+  if (isHandoffPath(relativePath)) {
+    return { kind: 'continuity', confidence: 0.95 };
+  }
+
+  // 2. Direct filename match (e.g., CONSTRAINTS.md → constraints)
   const filenameKind = FILENAME_LAYER_MAP[fileName.toLowerCase()];
   if (filenameKind) {
     return { kind: filenameKind, confidence: 0.9 };
   }
 
-  // 2. Known AI tool source type with a default kind (e.g., CLAUDE.md → context)
+  // 3. Known AI tool source type with a default kind (e.g., CLAUDE.md → context)
   if (sourceType !== 'generic-md') {
     const fileTypeInfo = getFileTypeInfo(sourceType);
     if (fileTypeInfo?.defaultKind) {
@@ -141,7 +166,7 @@ function inferKind(fileName: string, sourceType: string): { kind: LayerType | nu
     }
   }
 
-  // 3. No match — this file is discovered but unclassified
+  // 4. No match — this file is discovered but unclassified
   return { kind: null, confidence: 0 };
 }
 
@@ -158,6 +183,9 @@ function isInstructionFile(fileName: string, relativePath: string): boolean {
 
   // Known AI tool config file
   if (AI_TOOL_FILES.has(lower)) return true;
+
+  // Handoff files (docs/handoffs/YYYY-MM-DD-*.md)
+  if (isHandoffPath(relativePath)) return true;
 
   // Pattern-based AI tool files
   if (lower.endsWith('.mdc')) return true;
@@ -237,7 +265,7 @@ function walkFiles(dir: string, rootDir: string, results: ScannedFile[]): void {
       inferredKind = parsedAsset.frontmatter.kind;
       inferredConfidence = 1.0;
     } else {
-      const inference = inferKind(entry, sourceType);
+      const inference = inferKind(entry, relativePath, sourceType);
       inferredKind = inference.kind;
       inferredConfidence = inference.confidence;
     }

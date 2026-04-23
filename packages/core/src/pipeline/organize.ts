@@ -29,6 +29,7 @@ const LAYER_IMPORTANCE: Record<LayerType, 'critical' | 'recommended' | 'optional
   evals: 'optional',
   prompts: 'optional',
   memory: 'optional',
+  continuity: 'recommended',
 };
 
 // ---- Deduplication ----
@@ -289,7 +290,7 @@ export function computeReadinessScore(resolvedLayers: ResolvedLayer[]): {
 } {
   const weights: Record<LayerType, number> = {
     identity: 3, constraints: 3,
-    context: 2, skills: 2, goals: 2, style: 2, policies: 2,
+    context: 2, skills: 2, goals: 2, style: 2, policies: 2, continuity: 2,
     examples: 1, tools: 1, evals: 1, prompts: 1, memory: 1,
   };
 

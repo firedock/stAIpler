@@ -30,8 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — secrets are gitignored; public NEXT_PUBLIC_* values
+# live in .env.production and ARE committed (they ship in the browser bundle).
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
 
 # vercel
 .vercel

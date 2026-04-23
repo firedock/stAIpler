@@ -2,7 +2,7 @@
 export type StaticLayerType = 'identity' | 'goals' | 'context' | 'constraints' |
                               'skills' | 'style' | 'examples' | 'tools' |
                               'policies' | 'evals' | 'prompts';
-export type RuntimeLayerType = 'memory';
+export type RuntimeLayerType = 'memory' | 'continuity';
 export type LayerType = StaticLayerType | RuntimeLayerType;
 
 export type MergeStrategy = 'concatenate' | 'last-wins';
