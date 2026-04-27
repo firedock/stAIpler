@@ -152,6 +152,11 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
             <DataSourcesPanel projectId={project.id} dataSources={[]} forceOpen />
           </div>
 
+          {/* CLI bridge — show even before a data source is connected, since the
+              CLI itself is one of the supported ways to bring source material in
+              (staipler init uploads scan results from a local repo). */}
+          <CliPanel projectId={project.id} />
+
           {/* Locked actions — visibility: show what's gated and why */}
           <div className="mt-6 pt-6 border-t border-white/[0.04]">
             <div className="text-[10px] uppercase tracking-wide text-slate-600 font-semibold mb-3">Locked until you connect a source</div>
