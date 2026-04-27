@@ -5,6 +5,7 @@ import { LAYER_TYPES } from '../schema.js';
 const LAYER_HINTS: Record<string, string> = {
   constraints: 'Hard limits and non-negotiables',
   context: 'Domain knowledge and business rules',
+  continuity: 'Session handoffs',
   evals: 'Test cases and acceptance criteria',
   examples: 'Few-shot examples and templates',
   goals: 'Success criteria and priorities',
@@ -18,8 +19,8 @@ const LAYER_HINTS: Record<string, string> = {
 };
 
 const LAYER_COLORS: Record<string, string> = {
-  constraints: '#ef4444', context: '#3b82f6', evals: '#6b7280',
-  examples: '#f59e0b', goals: '#10b981', identity: '#8b5cf6',
+  constraints: '#ef4444', context: '#3b82f6', continuity: '#84cc16',
+  evals: '#6b7280', examples: '#f59e0b', goals: '#10b981', identity: '#8b5cf6',
   memory: '#ec4899', policies: '#f97316', prompts: '#06b6d4',
   skills: '#14b8a6', style: '#a855f7', tools: '#64748b',
 };

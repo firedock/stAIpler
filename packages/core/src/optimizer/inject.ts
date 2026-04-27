@@ -29,6 +29,16 @@ export function generateStatusBlock(
   lines.push(`**Empowerment Score: ${readinessScore}/100 (${grade})**`);
   lines.push('');
 
+  // Continuity section is the most session-relevant context — show it first
+  // (after the headline score, before the layer-gap analysis) so the agent
+  // sees current handoff state before being told what's missing.
+  const continuityLayer = layers.find(l => l.kind === 'continuity');
+  const continuityBlock = renderContinuitySection(continuityLayer?.files ?? [], continuityConfig);
+  if (continuityBlock.length > 0) {
+    lines.push(continuityBlock);
+    lines.push('');
+  }
+
   if (missing.length > 0) {
     lines.push(`Missing layers: ${missing.map(l => l.kind).join(', ')}`);
     lines.push('');
@@ -54,14 +64,6 @@ export function generateStatusBlock(
 
   if (weak.length > 0) {
     lines.push(`Weak layers (need improvement): ${weak.map(l => `${l.kind} (${l.qualityScore}/100)`).join(', ')}`);
-    lines.push('');
-  }
-
-  // Continuity section — between the layer summary and the coverage tallies.
-  const continuityLayer = layers.find(l => l.kind === 'continuity');
-  const continuityBlock = renderContinuitySection(continuityLayer?.files ?? [], continuityConfig);
-  if (continuityBlock.length > 0) {
-    lines.push(continuityBlock);
     lines.push('');
   }
 

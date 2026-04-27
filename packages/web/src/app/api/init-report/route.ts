@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     // ---- Reconstruct ScanResult and AnalysisResult from Supabase data ----
 
     const ALL_LAYERS = [
-      'constraints', 'context', 'evals', 'examples',
+      'constraints', 'context', 'continuity', 'evals', 'examples',
       'goals', 'identity', 'memory', 'policies',
       'prompts', 'skills', 'style', 'tools',
     ];
@@ -55,12 +55,13 @@ export async function GET(request: Request) {
       evals: 'Test cases and acceptance criteria',
       prompts: 'Reusable prompt fragments',
       memory: 'Runtime session context',
+      continuity: 'Session handoffs',
     };
 
     const IMPORTANCE: Record<string, 'critical' | 'recommended' | 'optional'> = {
       identity: 'critical', constraints: 'critical',
       context: 'recommended', skills: 'recommended', goals: 'recommended',
-      style: 'recommended', policies: 'recommended',
+      style: 'recommended', policies: 'recommended', continuity: 'recommended',
       examples: 'optional', tools: 'optional', evals: 'optional',
       prompts: 'optional', memory: 'optional',
     };

@@ -98,6 +98,39 @@ describe('scanner — continuity detection', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('skips .claude/projects/ subdirectories so other-project session memory does not leak in', () => {
+    const dir = makeProject();
+    try {
+      // Stray Claude Code session memory from a different project — must be ignored.
+      const strayDir = join(dir, '.claude', 'projects', '-some-other-project', 'memory');
+      mkdirSync(strayDir, { recursive: true });
+      writeFileSync(join(strayDir, 'MEMORY.md'), '# stray memory from another project\n');
+
+      const result = scan(dir);
+
+      // Should NOT pick up the stray MEMORY.md from .claude/projects/
+      expect(result.files.find(f => f.relativePath.includes('.claude/projects'))).toBeUndefined();
+      expect(result.byKind.memory ?? []).toHaveLength(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('classifies CLAUDE.md as context via adapterMapping fallback', () => {
+    const dir = makeProject();
+    try {
+      writeFileSync(join(dir, 'CLAUDE.md'), '# Project instructions\n\nThis project does X, Y, Z.\n');
+      const result = scan(dir);
+
+      const claudeFile = result.files.find(f => f.name === 'CLAUDE.md');
+      expect(claudeFile).toBeDefined();
+      expect(claudeFile!.inferredKind).toBe('context');
+      expect(result.presentKinds).toContain('context');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('analyzer — continuity scoring', () => {

@@ -14,14 +14,20 @@ export const injectCommand = new Command('inject')
   .argument('[dir]', 'Directory to scan (default: current directory)')
   .option('--target <file>', 'Target file to inject into (overrides config and auto-detection)')
   .action(async (dir: string | undefined, opts: { target?: string }) => {
+    // When [dir] is passed, treat it as the project root for scan, config, and target resolution.
+    // Otherwise, walk up from cwd to find the nearest project root.
     let projectRoot: string;
-    try {
-      projectRoot = findProjectRoot(process.cwd());
-    } catch {
-      projectRoot = process.cwd();
+    if (dir) {
+      projectRoot = resolve(process.cwd(), dir);
+    } else {
+      try {
+        projectRoot = findProjectRoot(process.cwd());
+      } catch {
+        projectRoot = process.cwd();
+      }
     }
 
-    const scanDir = dir ? resolve(process.cwd(), dir) : projectRoot;
+    const scanDir = projectRoot;
     const { config } = loadConfig(projectRoot);
 
     // Scan
@@ -40,7 +46,7 @@ export const injectCommand = new Command('inject')
       process.exit(1);
     }
 
-    const result = injectStatus(target, analysis);
+    const result = injectStatus(target, analysis, config.continuity);
     const rel = relative(projectRoot, target);
 
     if (result.created) {

@@ -248,6 +248,17 @@ function inferKind(fileName: string, relativePath: string, sourceType: string): 
     if (fileTypeInfo?.defaultKind) {
       return { kind: fileTypeInfo.defaultKind, confidence: 0.7 };
     }
+    // 3b. Adapter files (CLAUDE.md, AGENTS.md, GEMINI.md, etc.) declare an
+    //     adapterMapping for proper section-level extraction by the pipeline.
+    //     The basic scan path uses the first mapping as the coarse-grained
+    //     classification so the analyzer can credit content to *some* layer
+    //     instead of leaving the file unclassified.
+    const firstMapping = fileTypeInfo?.adapterMapping
+      ? Object.values(fileTypeInfo.adapterMapping)[0]
+      : undefined;
+    if (firstMapping) {
+      return { kind: firstMapping, confidence: 0.6 };
+    }
   }
 
   // 4. No match — this file is discovered but unclassified
@@ -288,6 +299,21 @@ function isInstructionFile(fileName: string, relativePath: string): boolean {
   return false;
 }
 
+/**
+ * Path-based skip rules for directories that match by full path, not basename.
+ *
+ * Notably: `.claude/projects/` is where Claude Code stores per-session memory
+ * for ALL local projects (keyed by the original project path). When scanning
+ * a project that happens to have a `.claude/` directory, we'd otherwise pick
+ * up MEMORY.md files from completely unrelated projects and credit them
+ * toward the scanned project's memory layer. We do still want `.claude/*.md`
+ * (CLAUDE.md adapter files) to be picked up.
+ */
+function shouldSkipPath(relativePath: string): boolean {
+  const normalized = relativePath.replace(/\\/g, '/');
+  return /(^|\/)\.claude\/projects(\/|$)/.test(normalized);
+}
+
 function walkFiles(dir: string, rootDir: string, results: ScannedFile[]): void {
   if (!existsSync(dir)) return;
 
@@ -318,7 +344,8 @@ function walkFiles(dir: string, rootDir: string, results: ScannedFile[]): void {
     if (stat.isSymbolicLink()) continue;
 
     if (stat.isDirectory()) {
-      if (!skipDirs.has(entry)) {
+      const relPath = relative(rootDir, fullPath);
+      if (!skipDirs.has(entry) && !shouldSkipPath(relPath)) {
         walkFiles(fullPath, rootDir, results);
       }
       continue;

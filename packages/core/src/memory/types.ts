@@ -138,6 +138,7 @@ export interface MemoryStats {
 export const LAYER_COLORS: Record<string, string> = {
   constraints: '#ef4444',   // red
   context: '#3b82f6',       // blue
+  continuity: '#84cc16',    // lime — distinct from runtime memory pink and evergreen emerald
   evals: '#6b7280',         // gray
   examples: '#f59e0b',      // amber
   goals: '#10b981',         // emerald

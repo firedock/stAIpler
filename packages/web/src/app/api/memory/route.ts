@@ -32,14 +32,14 @@ export async function GET(request: Request) {
     const project = projectRes.data;
 
     const LAYER_COLORS: Record<string, string> = {
-      constraints: '#ef4444', context: '#3b82f6', evals: '#6b7280',
-      examples: '#f59e0b', goals: '#10b981', identity: '#8b5cf6',
+      constraints: '#ef4444', context: '#3b82f6', continuity: '#84cc16',
+      evals: '#6b7280', examples: '#f59e0b', goals: '#10b981', identity: '#8b5cf6',
       memory: '#ec4899', policies: '#f97316', prompts: '#06b6d4',
       skills: '#14b8a6', style: '#a855f7', tools: '#64748b',
     };
 
     const ALL_LAYERS = [
-      'constraints', 'context', 'evals', 'examples',
+      'constraints', 'context', 'continuity', 'evals', 'examples',
       'goals', 'identity', 'memory', 'policies',
       'prompts', 'skills', 'style', 'tools',
     ];

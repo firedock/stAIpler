@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     const CANONICAL_ORDER = [
-      'constraints', 'context', 'evals', 'examples',
+      'constraints', 'context', 'continuity', 'evals', 'examples',
       'goals', 'identity', 'memory', 'policies',
       'prompts', 'skills', 'style', 'tools',
     ];
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       policies: 'Policies', constraints: 'Constraints', skills: 'Skills',
       style: 'Style', examples: 'Examples', tools: 'Tools',
       prompts: 'Prompts', evals: 'Evals', memory: 'Memory',
+      continuity: 'Continuity',
     };
 
     const byKind: Record<string, typeof files[0][]> = {};

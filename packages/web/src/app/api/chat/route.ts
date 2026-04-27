@@ -14,7 +14,7 @@ const BYOK_REQUIRED_MESSAGE =
   'A managed billing plan is not yet available. Bring your own API key (Anthropic or OpenAI) in Settings to continue.';
 
 const CANONICAL_ORDER = [
-  'constraints', 'context', 'evals', 'examples',
+  'constraints', 'context', 'continuity', 'evals', 'examples',
   'goals', 'identity', 'memory', 'policies',
   'prompts', 'skills', 'style', 'tools',
 ];
@@ -24,6 +24,7 @@ const KIND_TITLES: Record<string, string> = {
   policies: 'Policies', constraints: 'Constraints', skills: 'Skills',
   style: 'Style', examples: 'Examples', tools: 'Tools',
   prompts: 'Prompts', evals: 'Evals', memory: 'Memory',
+  continuity: 'Continuity',
 };
 
 interface AttributionEntry {
