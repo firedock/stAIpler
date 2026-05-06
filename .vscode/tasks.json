@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "stAIpler: build extension",
+      "type": "shell",
+      "command": "pnpm --filter @staipler/vscode-extension build",
+      "options": {
+        "shell": {
+          "executable": "/bin/zsh",
+          "args": ["-ic"]
+        }
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "name": "@staipler/vscode-extension",
+  "displayName": "stAIpler",
+  "description": "Read-only visibility into the stAIpler context pipeline — see your empowerment score, layer coverage, and pipeline state in real time.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "firedock",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "staipler",
+          "title": "stAIpler",
+          "icon": "$(layers)"
+        }
+      ]
+    },
+    "views": {
+      "staipler": [
+        {
+          "id": "staipler.pipeline",
+          "name": "Pipeline",
+          "icon": "$(layers)",
+          "contextualTitle": "stAIpler Pipeline"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "staipler.refresh",
+        "title": "stAIpler: Refresh Pipeline",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "staipler.openFile",
+        "title": "stAIpler: Open File"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "staipler.refresh",
+          "when": "view == staipler.pipeline",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "@staipler/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/vscode": "^1.85.0"
+  }
+}

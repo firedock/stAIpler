@@ -124,7 +124,7 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
             </div>
             <div>
               <h2 className="text-xl font-semibold">Connect your environment to start</h2>
-              <p className="text-sm text-slate-400 mt-0.5">stAIpler can&apos;t evaluate your agent until it has source material to analyze</p>
+              <p className="text-sm text-slate-400 mt-0.5">Two ways in: connect a data source below, <span className="text-slate-300">or</span> sync from a local repo using the CLI.</p>
             </div>
           </div>
 
@@ -147,15 +147,29 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
             </div>
           </div>
 
-          {/* Source picker — reuses the live DataSourcesPanel so all flows work inline */}
+          {/* Option A — connect a data source from the web */}
           <div className="rounded-xl bg-black/20 border border-white/[0.04] p-4">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-3">Option A — Connect a data source</div>
             <DataSourcesPanel projectId={project.id} dataSources={[]} forceOpen />
           </div>
 
-          {/* CLI bridge — show even before a data source is connected, since the
-              CLI itself is one of the supported ways to bring source material in
-              (staipler init uploads scan results from a local repo). */}
-          <CliPanel projectId={project.id} />
+          {/* OR divider — both paths are equally valid */}
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-white/[0.06]" />
+            <div className="text-[10px] uppercase tracking-wider text-slate-600 font-semibold">or</div>
+            <div className="flex-1 h-px bg-white/[0.06]" />
+          </div>
+
+          {/* Option B — sync from a local repo with the CLI. Default-expanded so
+              users discover this without needing to click a collapsed disclosure. */}
+          <div className="rounded-xl bg-black/20 border border-white/[0.04] p-4">
+            <div className="text-[10px] uppercase tracking-wide text-slate-500 font-semibold mb-3">Option B — Sync from a local repo</div>
+            <CliPanel
+              projectId={project.id}
+              defaultExpanded
+              triggerLabel="Set up the CLI bridge"
+            />
+          </div>
 
           {/* Locked actions — visibility: show what's gated and why */}
           <div className="mt-6 pt-6 border-t border-white/[0.04]">
@@ -290,7 +304,9 @@ export function ProjectDashboard({ project, snapshots, files, dataSources, hasAg
       )}
 
       {/* Sync with codebase — CLI bridge */}
-      <CliPanel projectId={project.id} />
+      <div className="mt-8">
+        <CliPanel projectId={project.id} />
+      </div>
 
       {/* Quick Proof — show for new projects */}
       {snapshots.length < 2 && !showOnboarding && (

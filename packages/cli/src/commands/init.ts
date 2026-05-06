@@ -1,7 +1,8 @@
 import { Command } from 'commander';
-import { existsSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve, basename } from 'path';
 import { execSync } from 'child_process';
+import { createInterface } from 'readline';
 import {
   scan,
   analyze,
@@ -11,7 +12,7 @@ import {
   saveKpiSnapshot,
   generateInitReport,
 } from '@staipler/core';
-import type { KpiSnapshot, StaiplerConfig } from '@staipler/core';
+import type { KpiSnapshot } from '@staipler/core';
 import { uploadReport } from '../utils/upload-report.js';
 
 const AGENT_FILES = ['CLAUDE.md', 'AGENTS.md', '.cursorrules', '.windsurfrules', '.clinerules', 'GEMINI.md'];
@@ -21,6 +22,17 @@ function detectAgentFile(dir: string): string | null {
     if (existsSync(resolve(dir, file))) return file;
   }
   return null;
+}
+
+async function confirm(question: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      const a = answer.trim().toLowerCase();
+      resolve(a === 'y' || a === 'yes');
+    });
+  });
 }
 
 function openInBrowser(filePath: string): void {
@@ -43,11 +55,12 @@ export const initCommand = new Command('init')
   .option('--inject <file>', 'Agent config file to inject status into (e.g., CLAUDE.md)')
   .option('--min-score <n>', 'Minimum score for CI checks', parseInt)
   .option('--yes', 'Skip prompts, use defaults')
+  .option('--reset', 'Reset .staipler.json to defaults — discards any customizations')
   .option('--proof', 'Run quick proof after init')
   .option('--no-proof', 'Skip quick proof')
   .option('--no-open', 'Don\'t auto-open the report in browser')
   .option('--no-share', 'Don\'t upload the report to staipler.com (local only)')
-  .action(async (opts: { inject?: string; minScore?: number; yes?: boolean; proof?: boolean; open?: boolean; share?: boolean }) => {
+  .action(async (opts: { inject?: string; minScore?: number; yes?: boolean; reset?: boolean; proof?: boolean; open?: boolean; share?: boolean }) => {
     const projectDir = process.cwd();
     const projectName = basename(projectDir);
     const configPath = resolve(projectDir, '.staipler.json');
@@ -61,8 +74,17 @@ export const initCommand = new Command('init')
 
     // Step 1: Check for existing config
     const { config: loadedConfig, configPath: existingConfig } = loadConfig(projectDir);
-    if (existingConfig && resolve(existingConfig) === configPath) {
-      console.log(`  ${dim}Updating existing .staipler.json${r}`);
+    const hasExistingConfig = existingConfig !== null && resolve(existingConfig) === configPath;
+
+    // Confirm destructive --reset before clobbering an existing config
+    if (hasExistingConfig && opts.reset && !opts.yes && process.stdin.isTTY) {
+      const ok = await confirm(
+        `  ${dim}Reset will overwrite ${configPath} with defaults. Continue? [y/N] ${r}`,
+      );
+      if (!ok) {
+        console.log(`  ${dim}Aborted — no changes written.${r}\n`);
+        return;
+      }
     }
 
     // Step 2: Run initial scan
@@ -75,6 +97,9 @@ export const initCommand = new Command('init')
 
     // Step 3: Detect or choose agent file for injection
     let injectTarget = opts.inject ?? null;
+    if (!injectTarget && hasExistingConfig && !opts.reset && typeof loadedConfig.inject === 'string') {
+      injectTarget = loadedConfig.inject;
+    }
     if (!injectTarget) {
       const detected = detectAgentFile(projectDir);
       if (detected) {
@@ -83,11 +108,37 @@ export const initCommand = new Command('init')
     }
 
     // Step 4: Write .staipler.json
-    const config: Partial<StaiplerConfig> & { $schema?: string } = {
-      minScore: opts.minScore ?? DEFAULT_CONFIG.minScore,
-      requiredLayers: DEFAULT_CONFIG.requiredLayers,
-      inject: injectTarget,
-    };
+    // Smart-merge: when an existing config is present and --reset is NOT set,
+    // preserve all user-customized fields and only override what was explicitly
+    // passed via CLI flags. Reserve the clobber path for `--reset`.
+    let config: Record<string, unknown>;
+    let preservedKeys: string[] = [];
+    if (hasExistingConfig && !opts.reset) {
+      let raw: Record<string, unknown> = {};
+      try {
+        raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+      } catch {
+        raw = {};
+      }
+      config = { ...raw };
+      if (opts.minScore !== undefined) config.minScore = opts.minScore;
+      if (opts.inject !== undefined) config.inject = opts.inject;
+      else if (config.inject == null && injectTarget) config.inject = injectTarget;
+      preservedKeys = Object.keys(raw).filter(k => k !== '$schema');
+      const summary = preservedKeys.length > 0
+        ? ` ${dim}(preserved: ${preservedKeys.join(', ')})${r}`
+        : '';
+      console.log(`  ${dim}Reinitialized stAIpler — kept existing .staipler.json${summary}${r}`);
+    } else {
+      config = {
+        minScore: opts.minScore ?? DEFAULT_CONFIG.minScore,
+        requiredLayers: DEFAULT_CONFIG.requiredLayers,
+        inject: injectTarget,
+      };
+      if (hasExistingConfig && opts.reset) {
+        console.log(`  ${dim}Resetting .staipler.json to defaults${r}`);
+      }
+    }
     writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
 
     // Step 5: Inject status into agent file
@@ -156,6 +207,29 @@ export const initCommand = new Command('init')
       console.log(`  ${purple}${bold}View your report:${r}`);
       console.log(`  ${dim}file://${reportPath}${r}\n`);
     }
+
+    // Next commands — formatted like `staipler --help` with name + description
+    const nextCommands: Array<[string, string]> = [
+      ['optimize', 'Scan, analyze, and optimize your instruction stack'],
+      ['dashboard', 'Generate and open the project context dashboard'],
+      ['watch', 'Watch instruction files and show live empowerment score'],
+      ['eval-project', 'A/B test your project with and without stAIpler context'],
+      ['ci', 'Check instruction stack against quality thresholds (for CI/CD)'],
+      ['inject', 'Re-inject empowerment status into your agent config file'],
+      ['memory', "Inspect your agent's memory — what it knows and what's missing"],
+    ];
+    const headline = score < 60
+      ? 'Your score is low — start with optimize to fill the biggest gaps:'
+      : score < 80
+        ? 'Solid start. Tighten things up with:'
+        : 'Strong baseline. Keep it healthy with:';
+    const nameWidth = Math.max(...nextCommands.map(([name]) => name.length));
+    console.log(`  ${purple}${bold}Next commands${r}  ${dim}${headline}${r}`);
+    for (const [name, desc] of nextCommands) {
+      const padded = name.padEnd(nameWidth, ' ');
+      console.log(`    ${bold}staipler ${padded}${r}  ${dim}${desc}${r}`);
+    }
+    console.log(`\n  ${dim}Run ${r}${bold}staipler --help${r}${dim} for the full command list.${r}\n`);
 
     // Run quick proof only if explicitly requested with --proof
     if (opts.proof && process.stdin.isTTY) {

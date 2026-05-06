@@ -4,10 +4,12 @@ import { useState } from 'react';
 
 interface CliPanelProps {
   projectId: string;
+  defaultExpanded?: boolean;
+  triggerLabel?: string;
 }
 
-export function CliPanel({ projectId }: CliPanelProps) {
-  const [expanded, setExpanded] = useState(false);
+export function CliPanel({ projectId, defaultExpanded = false, triggerLabel = 'Sync with your codebase' }: CliPanelProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [token, setToken] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function CliPanel({ projectId }: CliPanelProps) {
   const pullCommand = `staipler pull ${projectId}`;
 
   return (
-    <div className="mt-8">
+    <div>
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 text-sm font-semibold mb-4 hover:text-purple-400 transition"
@@ -49,7 +51,7 @@ export function CliPanel({ projectId }: CliPanelProps) {
         <svg className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
-        Sync with your codebase
+        {triggerLabel}
       </button>
 
       {expanded && (
